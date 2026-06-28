@@ -400,64 +400,136 @@ function parseBomExcel(buf) {
   try {
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
-    // Get column mapping from config, or use defaults
-    const cm = CONFIG?.bom_columns || {};
-    const col = (key, def) => cm[key] || def;
+    // ── Step 1: Read as raw 2D array (no header assumptions) ──────────────
+    const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-    // Find header row (skip merged/blank rows at top)
-    const data = raw.filter(r => {
-      const skuVal = r[col('sku', 'Block SKU Name')] || r['Block SKU Name'] || '';
-      return typeof skuVal === 'string' && skuVal.includes('BLOCK');
-    });
+    // ── Step 2: Find the header row — the row containing key column names ──
+    // We look for the row that has "Block SKU Name" or similar
+    let headerRowIdx = -1;
+    let skuColIdx = -1;
+    const skuKeywords = ['block sku', 'sku name', 'block name', 'block identity'];
+    for (let i = 0; i < Math.min(allRows.length, 10); i++) {
+      const row = allRows[i];
+      for (let j = 0; j < row.length; j++) {
+        const cell = String(row[j] || '').toLowerCase().trim();
+        if (skuKeywords.some(k => cell.includes(k))) {
+          headerRowIdx = i; skuColIdx = j; break;
+        }
+      }
+      if (headerRowIdx >= 0) break;
+    }
 
-    BOM = data.map(r => {
-      const sku = r[col('sku','Block SKU Name')] || r['Block SKU Name'] || '';
+    // ── Step 3: If no header found, scan ALL cells for BLOCK SKU pattern ──
+    // This handles any Excel layout — we extract directly from the SKU cell
+    const SKU_RE = /BLOCK\s+(\d+)X(\d+)X(\d+)-D(\d+)(?:-([A-Z]{2}))?-B(\d+)/i;
 
-      // Parse dimensions directly from SKU string — most reliable source
-      // Format: BLOCK LxWxH-Dxx[-GRADE]-Bxx   e.g. BLOCK 75X51X820-D70-B8 or BLOCK 79X63X820-D70-IG-B13
-      const skuMatch = sku.match(/BLOCK\s+(\d+)X(\d+)X(\d+)-D(\d+)(?:-([A-Z]{2}))?-B(\d+)/i);
-      const L_sku   = skuMatch ? parseInt(skuMatch[1]) : 0;
-      const W_sku   = skuMatch ? parseInt(skuMatch[2]) : 0;
-      const H_sku   = skuMatch ? parseInt(skuMatch[3]) : 820;
-      const D_sku   = skuMatch ? parseInt(skuMatch[4]) : 0;
-      const G_sku   = skuMatch && skuMatch[5] ? skuMatch[5].toUpperCase() : null;
-      const B_sku   = skuMatch ? parseInt(skuMatch[6]) : 0;
+    if (headerRowIdx < 0) {
+      // Fallback: find every cell matching the SKU pattern and read row values
+      BOM = [];
+      for (let i = 0; i < allRows.length; i++) {
+        const row = allRows[i];
+        for (let j = 0; j < row.length; j++) {
+          const cell = String(row[j] || '');
+          const m = cell.match(SKU_RE);
+          if (m) {
+            // Extract all numeric values from this row
+            const nums = row.map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
+            BOM.push(buildBomRecord(cell, m, nums, row));
+          }
+        }
+      }
+    } else {
+      // ── Step 4: Use header row to build column map ──────────────────────
+      const headers = allRows[headerRowIdx];
+      const colIdx = {}; // name -> index
+      headers.forEach((h, i) => {
+        const k = String(h || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/\n/g, ' ');
+        colIdx[k] = i;
+      });
 
-      const getNum = (keys) => {
-        for (const k of keys) { const v = parseFloat(r[k]); if (!isNaN(v) && v !== 0) return v; }
-        return 0;
+      const findCol = (...names) => {
+        for (const n of names) {
+          const k = n.toLowerCase().replace(/\s+/g, ' ').replace(/\n/g, ' ');
+          if (colIdx[k] !== undefined) return colIdx[k];
+          // partial match
+          const found = Object.keys(colIdx).find(c => c.includes(k) || k.includes(c));
+          if (found) return colIdx[found];
+        }
+        return -1;
       };
 
-      // Fallback to Excel columns if SKU parse fails
-      const L = L_sku || getNum([col('L','L (mm)'), 'L (mm)']);
-      const W = W_sku || getNum([col('W','W (mm)'), 'W (mm)']);
-      const H = H_sku || getNum([col('H','H (mm)'), 'H (mm)']) || 820;
-      const D = D_sku || getNum([col('density','Density'), 'Density']);
-      const B = B_sku;
-      const Grade = G_sku || r[col('grade_code','Grade Code')] || r['Grade Code'] || 'FO';
-
-      return {
-        sku, L, W, H, D, Grade, B,
-        total_wt:             getNum([col('total_wt','Total Wt\n(KG)'), 'Total Wt\n(KG)', 'Total Wt (KG)', 'Total Wt']),
-        bom_local_pct:        getNum([col('local_pct','Local Scrap'), 'Local Scrap']),
-        bom_imported_pct:     getNum([col('imported_pct','Imported Scrap'), 'Imported Scrap']),
-        bom_rebonded_pct:     getNum([col('rebonded_pct','Rebonded Scrap'), 'Rebonded Scrap']),
-        bom_memory_pct:       getNum([col('memory_pct','Memory Scrap'), 'Memory Scrap']),
-        bom_total_scrap_pct:  getNum([col('total_scrap_pct','Total Scrap\n%'), 'Total Scrap\n%', 'Total Scrap %']),
-        bom_hard1519_pct:     getNum([col('hard1519_pct','Hard Binder 1519'), 'Hard Binder 1519']),
-        bom_soft1513_pct:     getNum([col('soft1513_pct','Soft Binder 1513'), 'Soft Binder 1513']),
-        bom_soft1026_pct:     getNum([col('soft1026_pct','Soft Binder 1026'), 'Soft Binder 1026']),
-        bom_total_binder_pct: getNum([col('total_binder_pct','Total Binder %'), 'Total Binder %']),
+      const getCell = (row, ...names) => {
+        const i = findCol(...names);
+        return i >= 0 ? row[i] : '';
       };
-    }).filter(r => r.L > 0 && r.B > 0);
+      const getNum2 = (row, ...names) => {
+        const v = parseFloat(getCell(row, ...names));
+        return isNaN(v) ? 0 : v;
+      };
 
-    localStorage.setItem('sarva_bom_url', document.getElementById('bom-url-input').value.trim());
+      BOM = [];
+      for (let i = headerRowIdx + 1; i < allRows.length; i++) {
+        const row = allRows[i];
+        const sku = String(getCell(row, 'block sku name', 'sku name', 'block name') || '');
+        const m = sku.match(SKU_RE);
+        if (!m) continue;
+
+        const nums = row.map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
+        const gradeFromCol = String(getCell(row, 'grade code', 'grade') || '').trim().toUpperCase();
+
+        BOM.push({
+          sku,
+          L: parseInt(m[1]), W: parseInt(m[2]), H: parseInt(m[3]),
+          D: parseInt(m[4]),
+          Grade: m[5] ? m[5].toUpperCase() : (gradeFromCol || 'FO'),
+          B: parseInt(m[6]),
+          total_wt:             getNum2(row, 'total wt\n(kg)', 'total wt (kg)', 'total wt', 'total weight'),
+          bom_local_pct:        getNum2(row, 'local scrap'),
+          bom_imported_pct:     getNum2(row, 'imported scrap'),
+          bom_rebonded_pct:     getNum2(row, 'rebonded scrap'),
+          bom_memory_pct:       getNum2(row, 'memory scrap'),
+          bom_total_scrap_pct:  getNum2(row, 'total scrap\n%', 'total scrap %', 'total scrap%'),
+          bom_hard1519_pct:     getNum2(row, 'hard binder 1519', 'hard binder', 'hard 1519'),
+          bom_soft1513_pct:     getNum2(row, 'soft binder 1513', 'soft binder 1513'),
+          bom_soft1026_pct:     getNum2(row, 'soft binder 1026', 'soft binder 1026'),
+          bom_total_binder_pct: getNum2(row, 'total binder %', 'total binder%', 'binder %'),
+        });
+      }
+    }
+
+    BOM = BOM.filter(r => r.L > 0 && r.B > 0 && r.total_wt > 0);
+
+    // Save URL if loaded from URL
+    const urlInput = document.getElementById('bom-url-input').value.trim();
+    if (urlInput) localStorage.setItem('sarva_bom_url', urlInput);
     document.getElementById('bom-count').textContent = BOM.length + ' records';
     updatePills();
-    alert(`✓ Block Master loaded: ${BOM.length} BOM records found.`);
+    alert(`✓ Block Master loaded: ${BOM.length} BOM records found.\n\nSample: ${BOM[0]?.sku || 'none'}`);
   } catch(e) { alert('Error parsing Excel: ' + e.message); console.error(e); }
+}
+
+function buildBomRecord(sku, m, nums, row) {
+  // When we have no headers, pick percentage values (0-1 range) and weights heuristically
+  const pcts = nums.filter(v => v > 0 && v <= 1);
+  const wts  = nums.filter(v => v > 1);
+  return {
+    sku,
+    L: parseInt(m[1]), W: parseInt(m[2]), H: parseInt(m[3]),
+    D: parseInt(m[4]),
+    Grade: m[5] ? m[5].toUpperCase() : 'FO',
+    B: parseInt(m[6]),
+    total_wt:             wts[wts.length - 1] || 0,
+    bom_local_pct:        pcts[1] || 0,
+    bom_imported_pct:     pcts[0] || 0,
+    bom_rebonded_pct:     pcts[2] || 0,
+    bom_memory_pct:       pcts[3] || 0,
+    bom_total_scrap_pct:  pcts[4] || 0,
+    bom_hard1519_pct:     pcts[5] || 0,
+    bom_soft1513_pct:     pcts[6] || 0,
+    bom_soft1026_pct:     pcts[7] || 0,
+    bom_total_binder_pct: pcts[8] || 0,
+  };
 }
 
 // ── Status pills ───────────────────────────────────────────────────────────
