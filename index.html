@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sarva Foam — Daily Foaming Report Tool</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#F0F4F8;min-height:100vh;color:#1a1a1a}
+.topbar{background:#1F3864;color:#fff;padding:.875rem 1.5rem;display:flex;align-items:center;gap:.875rem;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.topbar h1{font-size:16px;font-weight:700}
+.topbar p{font-size:11px;opacity:.75;margin-top:1px}
+.logo{width:38px;height:38px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo i{font-size:20px}
+.container{max-width:1320px;margin:0 auto;padding:1.25rem 1rem}
+
+.setup-banner{background:#1e3a5f;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:flex-start;gap:1rem}
+.setup-banner.hidden{display:none}
+.setup-icon{font-size:28px;flex-shrink:0;margin-top:2px}
+.setup-text h3{font-size:13px;font-weight:700;color:#93c5fd;margin-bottom:.4rem}
+.setup-text p{font-size:12px;color:#bfdbfe;line-height:1.5}
+.setup-text a{color:#60a5fa;text-decoration:underline}
+.worker-input{display:flex;gap:.5rem;margin-top:.75rem;align-items:center;flex-wrap:wrap}
+.worker-input input{flex:1;min-width:200px;padding:.5rem .75rem;border:1.5px solid #3b82f6;border-radius:8px;font-size:12px;background:#0f2744;color:#fff}
+.worker-input input::placeholder{color:#64748b}
+.worker-input input:focus{outline:none;border-color:#60a5fa}
+.save-btn{padding:.5rem 1rem;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.save-btn:hover{background:#1d4ed8}
+.key-ok{font-size:11px;margin-top:.4rem;padding:.3rem .7rem;border-radius:6px;display:inline-block;background:#dcfce7;color:#166534;font-weight:600}
+.key-no{font-size:11px;margin-top:.4rem;padding:.3rem .7rem;border-radius:6px;display:inline-block;background:#fef3c7;color:#92400e;font-weight:600}
+
+.steps{display:flex;margin-bottom:1.25rem;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.sb{flex:1;padding:.75rem .5rem;font-size:13px;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;color:#666;background:#fff;border-right:1px solid #e5e7eb;transition:all .15s}
+.sb:last-child{border-right:none}
+.sb.active{background:#1F3864;color:#fff}
+.snum{width:22px;height:22px;border-radius:50%;font-size:11px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.2);flex-shrink:0;font-weight:700}
+.sb:not(.active) .snum{background:#e5e7eb;color:#666}
+.panel{display:none}.panel.active{display:block}
+.card{background:#fff;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.ctitle{font-size:14px;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:8px;color:#1F3864}
+.ctitle i{font-size:18px}
+
+.upload-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:1rem}
+.img-thumb{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:3/4;background:#f1f5f9;border:1px solid #e2e8f0}
+.img-thumb img{width:100%;height:100%;object-fit:cover}
+.thumb-badge{position:absolute;top:6px;left:6px;background:#1F3864;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.thumb-status{position:absolute;bottom:0;left:0;right:0;padding:6px;font-size:10px;font-weight:700;text-align:center}
+.sp{background:rgba(251,191,36,.92);color:#78350f}
+.sr{background:rgba(37,99,235,.9);color:#fff}
+.sd{background:rgba(22,163,74,.9);color:#fff}
+.se{background:rgba(220,38,38,.9);color:#fff}
+.del-btn{position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center}
+.add-card{border:2.5px dashed #CBD5E1;border-radius:10px;aspect-ratio:3/4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:#94a3b8;transition:all .2s}
+.add-card:hover{border-color:#2E75B6;color:#2E75B6;background:#F0F9FF}
+.add-card i{font-size:32px}
+.add-card span{font-size:12px;text-align:center;padding:0 8px;font-weight:600}
+#file-input{display:none}
+
+.progress-wrap{margin:.75rem 0;display:none}
+.progress-label{font-size:12px;color:#64748b;margin-bottom:.35rem;font-weight:600}
+.progress-bar{height:8px;background:#E2E8F0;border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:#2E75B6;border-radius:4px;transition:width .4s}
+
+.scan-btn{width:100%;padding:1rem;background:#1F3864;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.75rem;margin-bottom:.75rem;transition:all .15s}
+.scan-btn:hover:not(:disabled){background:#2E75B6}
+.scan-btn:disabled{opacity:.4;cursor:not-allowed}
+.scan-btn i{font-size:22px}
+
+.tw{overflow-x:auto;border-radius:8px;border:1px solid #E2E8F0}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:960px}
+th{background:#1F3864;color:#fff;padding:7px 8px;text-align:center;font-weight:700;font-size:11px;white-space:nowrap}
+th.ga{background:#843C0C}th.gv{background:#4A0878}
+td{padding:6px 8px;border-bottom:1px solid #F1F5F9;text-align:center;font-size:12px}
+tr:nth-child(even) td{background:#FAFAFA}
+tr:hover td{background:#EFF6FF}
+td input{width:100%;border:none;background:transparent;text-align:center;font-size:12px;color:#1a1a1a;outline:none;min-width:38px}
+td input:focus{background:#EFF6FF;border-radius:4px}
+.vpos{background:#FFCCCC;color:#7a0000;font-weight:700;padding:2px 5px;border-radius:4px;display:inline-block;font-size:11px}
+.vneg{background:#CCFFCC;color:#166534;font-weight:700;padding:2px 5px;border-radius:4px;display:inline-block;font-size:11px}
+.vzero{color:#94a3b8}
+.nobom{background:#FEF3C7;color:#92400e;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
+.src-badge{font-size:10px;background:#F1F5F9;border:1px solid #E2E8F0;padding:1px 6px;border-radius:10px;color:#64748b;font-weight:600}
+.btn{padding:.55rem 1.1rem;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid #E2E8F0;background:#fff;color:#374151;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn:hover{background:#F8FAFC;border-color:#CBD5E1}
+.btn.pri{background:#1F3864;border-color:#1F3864;color:#fff}.btn.pri:hover{background:#2E75B6;border-color:#2E75B6}
+.btn.grn{background:#166534;border-color:#166534;color:#fff}.btn.grn:hover{background:#15803d}
+.btn.red{background:#DC2626;border-color:#DC2626;color:#fff}
+.brow{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem;align-items:center}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1rem}
+.sc{background:#F8FAFC;border-radius:10px;padding:.875rem;text-align:center;border:1px solid #E2E8F0}
+.sl{font-size:11px;color:#64748b;margin-bottom:.35rem;font-weight:700}
+.sv{font-size:22px;font-weight:700;color:#1a1a1a}
+.sv.p{color:#DC2626}.sv.n{color:#166534}
+.alert{border-radius:8px;padding:.75rem 1rem;font-size:12px;margin-bottom:.75rem;display:flex;align-items:flex-start;gap:.5rem;font-weight:500}
+.aw{background:#FEF3C7;border:1.5px solid #FCD34D;color:#92400e}
+.ai{background:#EFF6FF;border:1.5px solid #BFDBFE;color:#1e40af}
+.as{background:#DCFCE7;border:1.5px solid #86EFAC;color:#166534}
+.add-row-btn{width:100%;padding:.5rem;border:1.5px dashed #CBD5E1;background:transparent;border-radius:8px;color:#94a3b8;font-size:12px;cursor:pointer;margin-top:.5rem;font-weight:600}
+.add-row-btn:hover{background:#F8FAFC}
+select,input[type=date],input[type=number]{border:1.5px solid #E2E8F0;border-radius:8px;padding:.4rem .7rem;font-size:13px}
+.page-sep td{background:#F1F5F9!important;font-size:11px;color:#64748b;padding:3px 10px!important;text-align:left!important}
+.howto{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem}
+.howto h3{font-size:13px;font-weight:700;color:#1F3864;margin-bottom:.6rem}
+.step-list{display:flex;flex-direction:column;gap:.45rem}
+.step-item{display:flex;align-items:flex-start;gap:.6rem;font-size:12px;color:#374151}
+.step-num{width:22px;height:22px;border-radius:50%;background:#1F3864;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><i class="ti ti-stack-2"></i></div>
+  <div>
+    <h1>Sarva Foam Industries — Daily Foaming Report Tool</h1>
+    <p>Upload paper sheet photos → AI reads handwriting → Review data → Download variance Excel</p>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- SETUP BANNER -->
+<div class="setup-banner" id="setup-banner">
+  <div class="setup-icon">⚙️</div>
+  <div class="setup-text" style="flex:1">
+    <h3>One-time setup: Enter your Cloudflare Worker URL</h3>
+    <p>This tool uses a free Cloudflare Worker to read handwriting from photos securely.<br>
+    Don't have one yet? Follow the <b>SETUP_GUIDE.md</b> in the GitHub repo — takes 5 minutes.<br>
+    Worker URL looks like: <code style="background:#0f2744;padding:1px 5px;border-radius:3px;font-size:11px">https://sarva-foam.YOUR-NAME.workers.dev</code></p>
+    <div class="worker-input">
+      <input type="url" id="worker-url-input" placeholder="https://sarva-foam.your-name.workers.dev">
+      <button class="save-btn" onclick="saveWorkerUrl()">Save URL</button>
+    </div>
+    <div id="url-status" class="key-no">No Worker URL saved</div>
+  </div>
+</div>
+
+<div class="steps">
+  <button class="sb active" onclick="goStep(1)" id="s1"><span class="snum">1</span> Upload Sheets</button>
+  <button class="sb" onclick="goStep(2)" id="s2"><span class="snum">2</span> Review Data</button>
+  <button class="sb" onclick="goStep(3)" id="s3"><span class="snum">3</span> Variance Report</button>
+</div>
+
+<!-- STEP 1 -->
+<div class="panel active" id="panel1">
+  <div class="howto">
+    <h3>Daily workflow</h3>
+    <div class="step-list">
+      <div class="step-item"><div class="step-num">1</div><span>Upload photos of the handwritten foaming report sheets — one or many pages at once</span></div>
+      <div class="step-item"><div class="step-num">2</div><span>Click <b>"Read all sheets with AI"</b> — extracts all block data automatically</span></div>
+      <div class="step-item"><div class="step-num">3</div><span>In Step 2: verify the data and fill the <b>Binder % code</b> for each block (8 / 10 / 11 / 12 / 13)</span></div>
+      <div class="step-item"><div class="step-num">4</div><span>Click <b>"Calculate Variance"</b> → see BOM vs Actual → download Excel</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle"><i class="ti ti-photos"></i> Upload foaming report sheet photos</div>
+    <div class="upload-grid" id="thumb-grid">
+      <div class="add-card" onclick="document.getElementById('file-input').click()">
+        <i class="ti ti-camera-plus"></i><span>Tap to add photos</span>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept="image/*" multiple capture="environment">
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-label" id="progress-label">Reading...</div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+    <button class="scan-btn" id="scan-btn" onclick="scanAll()" disabled>
+      <i class="ti ti-wand"></i> Read all sheets with AI
+    </button>
+    <div class="brow">
+      <button class="btn" onclick="addRow();goStep(2)"><i class="ti ti-keyboard"></i> Skip — enter data manually</button>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="panel" id="panel2">
+  <div class="card">
+    <div class="ctitle"><i class="ti ti-settings"></i> Report settings</div>
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:.5rem"><label style="font-size:13px;font-weight:700">Date:</label><input type="date" id="report-date"></div>
+      <div style="display:flex;align-items:center;gap:.5rem"><label style="font-size:13px;font-weight:700">Grade:</label>
+        <select id="global-grade"><option value="FO">FO (Standard)</option><option value="IG">IG (Inner Grade)</option></select></div>
+      <div style="display:flex;align-items:center;gap:.5rem"><label style="font-size:13px;font-weight:700">Height (mm):</label><input type="number" id="global-height" value="820" style="width:80px"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle"><i class="ti ti-table-options"></i> All block data — check and fill Binder % code</div>
+    <div class="alert ai"><i class="ti ti-bulb"></i><span>The <b>Binder % code</b> column (orange header) is required for exact BOM matching. Enter: 8, 10, 11, 12, or 13.</span></div>
+    <div class="tw">
+      <table>
+        <thead><tr>
+          <th>Sheet</th><th>Block No.</th><th>Density</th><th>L</th><th>W</th>
+          <th style="background:#843C0C;min-width:70px">★ Binder %</th>
+          <th class="ga">Imported</th><th class="ga">Local</th><th class="ga">Rebonded</th><th class="ga">Memory</th>
+          <th class="ga">Hard 1519</th><th class="ga">Soft 1513</th><th class="ga">Block Total</th>
+          <th>Del</th>
+        </tr></thead>
+        <tbody id="entry-body"></tbody>
+      </table>
+    </div>
+    <button class="add-row-btn" onclick="addRow()"><i class="ti ti-plus"></i> Add row manually</button>
+    <div class="brow">
+      <button class="btn pri" onclick="goStep(3)"><i class="ti ti-chart-bar"></i> Calculate Variance →</button>
+      <button class="btn" onclick="goStep(1)"><i class="ti ti-arrow-left"></i> Add more sheets</button>
+      <button class="btn red" onclick="if(confirm('Clear all data?')){rows=[];renderTable()}"><i class="ti ti-trash"></i> Clear all</button>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="panel" id="panel3">
+  <div id="summary-section"></div>
+  <div id="variance-section"></div>
+  <div class="brow" id="dl-row" style="display:none">
+    <button class="btn grn" onclick="downloadExcel()"><i class="ti ti-file-spreadsheet"></i> Download Excel Report</button>
+    <button class="btn" onclick="goStep(2)"><i class="ti ti-edit"></i> Edit data</button>
+    <button class="btn" onclick="goStep(1)"><i class="ti ti-plus"></i> Add more sheets</button>
+  </div>
+</div>
+</div>
+
+<script>
+const BOM = [{"sku": "BLOCK 75X51X820-D70-B8", "L": 75, "W": 51, "H": 820, "D": 70, "Grade": "FO", "B": 8, "total_wt": 137.6, "bom_local_pct": 0.77, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.92, "bom_hard1519_pct": 0.056, "bom_soft1513_pct": 0.024, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.08}, {"sku": "BLOCK 81X63X820-D70-B8", "L": 81, "W": 63, "H": 820, "D": 70, "Grade": "FO", "B": 8, "total_wt": 183.58, "bom_local_pct": 0.77, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.92, "bom_hard1519_pct": 0.056, "bom_soft1513_pct": 0.024, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.08}, {"sku": "BLOCK 81X75X820-D70-B8", "L": 81, "W": 75, "H": 820, "D": 70, "Grade": "FO", "B": 8, "total_wt": 218.54, "bom_local_pct": 0.77, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.92, "bom_hard1519_pct": 0.056, "bom_soft1513_pct": 0.024, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.08}, {"sku": "BLOCK 81X75X820-D70-B10", "L": 81, "W": 75, "H": 820, "D": 70, "Grade": "FO", "B": 10, "total_wt": 218.54, "bom_local_pct": 0.75, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.9, "bom_hard1519_pct": 0.07, "bom_soft1513_pct": 0.03, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.1}, {"sku": "BLOCK 81X63X820-D70-B10", "L": 81, "W": 63, "H": 820, "D": 70, "Grade": "FO", "B": 10, "total_wt": 183.58, "bom_local_pct": 0.75, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.9, "bom_hard1519_pct": 0.06, "bom_soft1513_pct": 0.04, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.1}, {"sku": "BLOCK 81X51X820-D70-B10", "L": 81, "W": 51, "H": 820, "D": 70, "Grade": "FO", "B": 10, "total_wt": 148.61, "bom_local_pct": 0.75, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.9, "bom_hard1519_pct": 0.06, "bom_soft1513_pct": 0.04, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.1}, {"sku": "BLOCK 79X63X820-D70-IG-B13", "L": 79, "W": 63, "H": 820, "D": 70, "Grade": "IG", "B": 13, "total_wt": 179.04, "bom_local_pct": 0.72, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.87, "bom_hard1519_pct": 0.091, "bom_soft1513_pct": 0.039, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.13}, {"sku": "BLOCK 79X75X820-D70-IG-B13", "L": 79, "W": 75, "H": 820, "D": 70, "Grade": "IG", "B": 13, "total_wt": 213.15, "bom_local_pct": 0.72, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.87, "bom_hard1519_pct": 0.091, "bom_soft1513_pct": 0.039, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.13}, {"sku": "BLOCK 79X63X820-D80-IG-B12", "L": 79, "W": 63, "H": 820, "D": 80, "Grade": "IG", "B": 12, "total_wt": 202.74, "bom_local_pct": 0.68, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.2, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 79X75X820-D80-IG-B12", "L": 79, "W": 75, "H": 820, "D": 80, "Grade": "IG", "B": 12, "total_wt": 241.36, "bom_local_pct": 0.68, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.2, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 75X51X820-D70-B12", "L": 75, "W": 51, "H": 820, "D": 70, "Grade": "FO", "B": 12, "total_wt": 137.6, "bom_local_pct": 0.73, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 75X63X820-D70-B12", "L": 75, "W": 63, "H": 820, "D": 70, "Grade": "FO", "B": 12, "total_wt": 169.98, "bom_local_pct": 0.73, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 75X75X820-D70-B12", "L": 75, "W": 75, "H": 820, "D": 70, "Grade": "FO", "B": 12, "total_wt": 202.35, "bom_local_pct": 0.73, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 79X51X820-D70-B12", "L": 79, "W": 51, "H": 820, "D": 70, "Grade": "FO", "B": 12, "total_wt": 144.94, "bom_local_pct": 0.73, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 79X63X820-D70-B12", "L": 79, "W": 63, "H": 820, "D": 70, "Grade": "FO", "B": 12, "total_wt": 179.04, "bom_local_pct": 0.73, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 79X75X820-D70-B12", "L": 79, "W": 75, "H": 820, "D": 70, "Grade": "FO", "B": 12, "total_wt": 213.15, "bom_local_pct": 0.73, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 81X63X820-D70-B12", "L": 81, "W": 63, "H": 820, "D": 70, "Grade": "FO", "B": 12, "total_wt": 183.58, "bom_local_pct": 0.73, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 81X75X820-D70-B12", "L": 81, "W": 75, "H": 820, "D": 70, "Grade": "FO", "B": 12, "total_wt": 218.54, "bom_local_pct": 0.73, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.88, "bom_hard1519_pct": 0.084, "bom_soft1513_pct": 0.036, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.12}, {"sku": "BLOCK 75X51X820-D80-B11", "L": 75, "W": 51, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 155.81, "bom_local_pct": 0.74, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.077, "bom_soft1513_pct": 0.033, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 75X75X820-D80-B11", "L": 75, "W": 75, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 229.14, "bom_local_pct": 0.74, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.077, "bom_soft1513_pct": 0.033, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 79X51X820-D80-B11", "L": 79, "W": 51, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 164.12, "bom_local_pct": 0.74, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.077, "bom_soft1513_pct": 0.033, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 79X63X820-D80-B11", "L": 79, "W": 63, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 202.74, "bom_local_pct": 0.74, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.077, "bom_soft1513_pct": 0.033, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 79X75X820-D80-B11", "L": 79, "W": 75, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 241.36, "bom_local_pct": 0.74, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.077, "bom_soft1513_pct": 0.033, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 81X75X820-D80-B11", "L": 81, "W": 75, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 247.47, "bom_local_pct": 0.74, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.077, "bom_soft1513_pct": 0.033, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 86X75X820-D80-B11", "L": 86, "W": 75, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 262.74, "bom_local_pct": 0.74, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.15, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.077, "bom_soft1513_pct": 0.033, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 75X51X820-D80-B11", "L": 75, "W": 51, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 155.81, "bom_local_pct": 0.71, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.18, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.066, "bom_soft1513_pct": 0.044, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 79X51X820-D80-B11", "L": 79, "W": 51, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 164.12, "bom_local_pct": 0.71, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.18, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.066, "bom_soft1513_pct": 0.044, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 79X63X820-D80-B11", "L": 79, "W": 63, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 202.74, "bom_local_pct": 0.71, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.18, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.066, "bom_soft1513_pct": 0.044, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 79X75X820-D80-B11", "L": 79, "W": 75, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 241.36, "bom_local_pct": 0.71, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.18, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.066, "bom_soft1513_pct": 0.044, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 81X63X820-D80-B11", "L": 81, "W": 63, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 207.87, "bom_local_pct": 0.71, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.18, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.066, "bom_soft1513_pct": 0.044, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}, {"sku": "BLOCK 81X75X820-D80-B11", "L": 81, "W": 75, "H": 820, "D": 80, "Grade": "FO", "B": 11, "total_wt": 247.47, "bom_local_pct": 0.71, "bom_imported_pct": 0.0, "bom_rebonded_pct": 0.18, "bom_memory_pct": 0.0, "bom_total_scrap_pct": 0.89, "bom_hard1519_pct": 0.066, "bom_soft1513_pct": 0.044, "bom_soft1026_pct": 0.0, "bom_total_binder_pct": 0.11}];
+let sheets=[], rows=[];
+document.getElementById('report-date').value = new Date().toISOString().split('T')[0];
+
+function saveWorkerUrl(){
+  const u=document.getElementById('worker-url-input').value.trim().replace(/\/$/,'');
+  if(!u.startsWith('https://')){alert('Please enter a valid https:// URL');return;}
+  localStorage.setItem('sarva_worker_url',u);
+  updateUrlStatus();
+  document.getElementById('worker-url-input').value='';
+}
+function getWorkerUrl(){return localStorage.getItem('sarva_worker_url')||'';}
+function updateUrlStatus(){
+  const u=getWorkerUrl(), el=document.getElementById('url-status');
+  if(u){
+    el.textContent='✓ Worker URL saved: '+u;
+    el.className='key-ok';
+    document.getElementById('setup-banner').classList.add('hidden');
+    document.getElementById('scan-btn').disabled = !sheets.length;
+  } else {
+    el.textContent='No Worker URL — enter above to enable AI scanning';
+    el.className='key-no';
+  }
+}
+updateUrlStatus();
+
+const fileInput=document.getElementById('file-input');
+fileInput.addEventListener('change',e=>addFiles(Array.from(e.target.files)));
+fileInput.addEventListener('click',()=>{fileInput.value='';});
+
+function addFiles(files){
+  files.forEach(f=>{
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      sheets.push({name:f.name,src:ev.target.result,status:'pending',blocks:[]});
+      renderThumbs();
+      if(getWorkerUrl()) document.getElementById('scan-btn').disabled=false;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function renderThumbs(){
+  const grid=document.getElementById('thumb-grid');
+  grid.innerHTML='';
+  sheets.forEach((s,i)=>{
+    const lbl={pending:'Ready',reading:'Reading...',done:s.blocks.length+' blocks found',error:'Error — retry'}[s.status];
+    const cls={pending:'sp',reading:'sr',done:'sd',error:'se'}[s.status];
+    grid.innerHTML+=`<div class="img-thumb">
+      <img src="${s.src}" alt="Sheet ${i+1}">
+      <div class="thumb-badge">Sheet ${i+1}</div>
+      <div class="thumb-status ${cls}">${lbl}</div>
+      ${s.status!=='reading'?`<button class="del-btn" onclick="removeSheet(${i})"><i class="ti ti-x" style="font-size:12px"></i></button>`:''}
+    </div>`;
+  });
+  grid.innerHTML+=`<div class="add-card" onclick="document.getElementById('file-input').click()">
+    <i class="ti ti-camera-plus"></i><span>Add more photos</span></div>`;
+}
+function removeSheet(i){rows=rows.filter(r=>r.pageNum!==i+1);sheets.splice(i,1);renderThumbs();if(!sheets.length)document.getElementById('scan-btn').disabled=true;}
+
+async function scanAll(){
+  const workerUrl=getWorkerUrl();
+  if(!workerUrl){alert('Please enter your Cloudflare Worker URL first.');return;}
+  const btn=document.getElementById('scan-btn');
+  btn.disabled=true;
+  const pWrap=document.getElementById('progress-wrap');
+  const pFill=document.getElementById('progress-fill');
+  const pLabel=document.getElementById('progress-label');
+  pWrap.style.display='block';
+  rows=rows.filter(r=>r.source==='manual');
+  for(let i=0;i<sheets.length;i++){
+    if(sheets[i].status==='done') continue;
+    sheets[i].status='reading'; renderThumbs();
+    pLabel.textContent=`Reading sheet ${i+1} of ${sheets.length}...`;
+    pFill.style.width=Math.round((i/sheets.length)*100)+'%';
+    try{
+      const blocks=await readSheet(sheets[i].src, workerUrl);
+      sheets[i].blocks=blocks; sheets[i].status='done';
+      blocks.forEach(b=>rows.push({...b,pageNum:i+1,source:'scan'}));
+    }catch(e){sheets[i].status='error';console.error('Sheet '+(i+1)+':',e);}
+    renderThumbs();
+  }
+  pFill.style.width='100%';
+  pLabel.textContent=`✓ Done! ${rows.filter(r=>r.source==='scan').length} blocks extracted. Go to Step 2.`;
+  btn.disabled=false;
+  setTimeout(()=>goStep(2),1500);
+}
+
+async function readSheet(src, workerUrl){
+  const base64=src.split(',')[1];
+  const mediaType=src.split(';')[0].split(':')[1];
+  const resp=await fetch(workerUrl,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({imageB64:base64,mediaType})
+  });
+  if(!resp.ok){const e=await resp.json();throw new Error(e.error||'Error '+resp.status);}
+  const data=await resp.json();
+  const text=data.content.map(c=>c.text||'').join('');
+  const clean=text.replace(/```json|```/g,'').trim();
+  const parsed=JSON.parse(clean);
+  if(parsed.date){
+    try{
+      const p=parsed.date.split('/');
+      if(p.length===3){const y=p[2].length===2?'20'+p[2]:p[2];document.getElementById('report-date').value=`${y}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;}
+    }catch(e){}
+  }
+  return(parsed.blocks||[]).map(b=>({blockNo:b.blockNo||'',density:b.density||'',L:b.L||'',W:b.W||'',binderCode:'',imported:b.imported||0,local:b.local||0,rebonded:b.rebonded||0,memory:b.memory||0,hard1519:b.hard1519||0,soft1513:b.soft1513||0,blockTotal:b.blockTotal||0}));
+}
+
+function addRow(d={}){rows.push({blockNo:'',density:'',L:'',W:'',binderCode:'',imported:0,local:0,rebonded:0,memory:0,hard1519:0,soft1513:0,blockTotal:0,pageNum:'M',source:'manual',...d});renderTable();}
+function deleteRow(i){rows.splice(i,1);renderTable();}
+function renderTable(){
+  const tbody=document.getElementById('entry-body');
+  tbody.innerHTML='';let lastPage=null;
+  rows.forEach((r,i)=>{
+    if(r.pageNum!==lastPage){
+      lastPage=r.pageNum;
+      const sep=document.createElement('tr');sep.className='page-sep';
+      sep.innerHTML=`<td colspan="14"><span class="src-badge">${r.source==='manual'?'✎ Manual':'📄 Sheet '+r.pageNum}</span></td>`;
+      tbody.appendChild(sep);
+    }
+    const tr=document.createElement('tr');
+    const fields=['blockNo','density','L','W','binderCode','imported','local','rebonded','memory','hard1519','soft1513','blockTotal'];
+    tr.innerHTML=fields.map(f=>`<td><input type="${f==='blockNo'?'text':'number'}" value="${r[f]}" step="0.01" oninput="rows[${i}]['${f}']=this.value" ${f==='binderCode'?'style="font-weight:700;color:#843C0C;width:55px"':''}></td>`).join('')+
+      `<td><button class="btn" style="padding:3px 7px;font-size:11px" onclick="deleteRow(${i})"><i class="ti ti-trash"></i></button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function goStep(n){
+  [1,2,3].forEach(i=>{document.getElementById('panel'+i).classList.toggle('active',i===n);document.getElementById('s'+i).classList.toggle('active',i===n);});
+  if(n===2)renderTable();if(n===3)renderVariance();
+}
+
+function lookupBom(L,W,H,D,B,grade){
+  const l=parseInt(L),w=parseInt(W),h=parseInt(H)||820,d=parseInt(D),b=parseInt(B),g=(grade||'FO').toUpperCase();
+  return BOM.find(x=>x.L===l&&x.W===w&&x.H===h&&x.D===d&&x.B===b&&x.Grade===g)||null;
+}
+const nf=(v,d=1)=>(parseFloat(v)||0).toFixed(d);
+const vc=v=>{const x=parseFloat(v);return Math.abs(x)<0.05?'vzero':x>0?'vpos':'vneg';};
+const vs=v=>{const x=parseFloat(v);return(x>0?'+':'')+nf(x);};
+
+function renderVariance(){
+  const grade=document.getElementById('global-grade').value;
+  const H=parseInt(document.getElementById('global-height').value)||820;
+  const dateStr=document.getElementById('report-date').value;
+  const processed=rows.map(r=>{
+    const bom=lookupBom(r.L,r.W,H,r.density,r.binderCode,grade);
+    const imp=parseFloat(r.imported)||0,loc=parseFloat(r.local)||0,reb=parseFloat(r.rebonded)||0,mem=parseFloat(r.memory)||0;
+    const h19=parseFloat(r.hard1519)||0,s13=parseFloat(r.soft1513)||0;
+    const ts=imp+loc+reb+mem,tb=h19+s13;
+    let bd=null,vars={};
+    if(bom){bd={imp:bom.bom_imported_pct*bom.total_wt,loc:bom.bom_local_pct*bom.total_wt,reb:bom.bom_rebonded_pct*bom.total_wt,mem:bom.bom_memory_pct*bom.total_wt,ts:bom.bom_total_scrap_pct*bom.total_wt,h19:bom.bom_hard1519_pct*bom.total_wt,s13:bom.bom_soft1513_pct*bom.total_wt,tb:bom.bom_total_binder_pct*bom.total_wt};vars={imp:imp-bd.imp,loc:loc-bd.loc,reb:reb-bd.reb,mem:mem-bd.mem,ts:ts-bd.ts,h19:h19-bd.h19,s13:s13-bd.s13,tb:tb-bd.tb};}
+    return{r,bom,bd,vars,imp,loc,reb,mem,ts,h19,s13,tb};
+  });
+  const matched=processed.filter(p=>p.bom),unmatched=processed.filter(p=>!p.bom);
+  const totVS=matched.reduce((s,p)=>s+p.vars.ts,0),totVB=matched.reduce((s,p)=>s+p.vars.tb,0);
+  const totS=processed.reduce((s,p)=>s+p.ts,0),totB=processed.reduce((s,p)=>s+p.tb,0);
+  const totalSheets=[...new Set(rows.filter(r=>r.source==='scan').map(r=>r.pageNum))].length;
+  document.getElementById('summary-section').innerHTML=`<div class="card">
+    <div class="ctitle"><i class="ti ti-report-analytics"></i> Daily Summary — ${dateStr||'Today'} <span class="src-badge" style="margin-left:6px">${totalSheets} sheet(s)</span></div>
+    ${unmatched.length?`<div class="alert aw"><i class="ti ti-alert-triangle"></i><span>${unmatched.length} block(s) not found in BOM. Fix Binder %, L, W, Density or Grade in Step 2.</span></div>`:''}
+    <div class="sgrid">
+      <div class="sc"><div class="sl">Total blocks</div><div class="sv">${processed.length}</div></div>
+      <div class="sc"><div class="sl">BOM matched</div><div class="sv">${matched.length}</div></div>
+      <div class="sc"><div class="sl">Actual scrap (kg)</div><div class="sv">${nf(totS,1)}</div></div>
+      <div class="sc"><div class="sl">Actual binder (kg)</div><div class="sv">${nf(totB,1)}</div></div>
+      <div class="sc"><div class="sl">Scrap variance</div><div class="sv ${totVS>0.05?'p':totVS<-0.05?'n':''}">${totVS>=0?'+':''}${nf(totVS,1)} kg</div></div>
+      <div class="sc"><div class="sl">Binder variance</div><div class="sv ${totVB>0.05?'p':totVB<-0.05?'n':''}">${totVB>=0?'+':''}${nf(totVB,1)} kg</div></div>
+    </div>
+    <div class="alert ${Math.abs(totVS)<2&&Math.abs(totVB)<2?'as':'aw'}"><i class="ti ti-info-circle"></i>
+      <span><b>RED</b> = over BOM (excess — investigate). <b>GREEN</b> = under BOM (saving). Variance = Actual − BOM standard.</span></div>
+  </div>`;
+  const trows=processed.map((p,i)=>{
+    const{bom,bd,vars,imp,loc,reb,mem,ts,h19,s13,tb,r}=p;
+    const pg=r.pageNum==='M'?'Manual':'Pg '+r.pageNum;
+    if(!bom)return`<tr><td><span class="src-badge">${pg}</span></td><td><b>${r.blockNo||'#'+(i+1)}</b></td><td colspan="2"><span class="nobom">⚠ Not in BOM: ${r.L}×${r.W}-D${r.density}-B${r.binderCode}</span></td><td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td><td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td><td colspan="8" style="color:#94a3b8;font-size:11px">— BOM not found —</td></tr>`;
+    return`<tr><td><span class="src-badge">${pg}</span></td><td><b>${r.blockNo||'#'+(i+1)}</b></td><td style="font-size:10px;text-align:left">${bom.sku}</td><td style="color:#166534;font-weight:700">✓</td><td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td><td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td><td><span class="${vc(vars.imp)}">${vs(vars.imp)}</span></td><td><span class="${vc(vars.loc)}">${vs(vars.loc)}</span></td><td><span class="${vc(vars.reb)}">${vs(vars.reb)}</span></td><td><span class="${vc(vars.mem)}">${vs(vars.mem)}</span></td><td><span class="${vc(vars.ts)}">${vs(vars.ts)}</span></td><td><span class="${vc(vars.h19)}">${vs(vars.h19)}</span></td><td><span class="${vc(vars.s13)}">${vs(vars.s13)}</span></td><td><span class="${vc(vars.tb)}">${vs(vars.tb)}</span></td></tr>`;
+  }).join('');
+  document.getElementById('variance-section').innerHTML=`<div class="card"><div class="ctitle"><i class="ti ti-git-diff"></i> Block-by-block variance (${processed.length} blocks)</div><div class="tw"><table><thead><tr><th rowspan="2">Page</th><th rowspan="2">Block No.</th><th rowspan="2">BOM SKU</th><th rowspan="2">✓</th><th colspan="5" class="ga">Actual scrap (kg)</th><th colspan="3" class="ga">Actual binder (kg)</th><th colspan="5" class="gv">Scrap variance</th><th colspan="3" class="gv">Binder variance</th></tr><tr><th class="ga">Imp</th><th class="ga">Local</th><th class="ga">Reb</th><th class="ga">Mem</th><th class="ga">Total</th><th class="ga">Hard 1519</th><th class="ga">Soft 1513</th><th class="ga">Total</th><th class="gv">Imp</th><th class="gv">Local</th><th class="gv">Reb</th><th class="gv">Mem</th><th class="gv">Total scrap</th><th class="gv">Hard 1519</th><th class="gv">Soft 1513</th><th class="gv">Total binder</th></tr></thead><tbody>${trows}</tbody></table></div></div>`;
+  document.getElementById('dl-row').style.display='flex';
+  window._processed=processed;
+}
+
+function downloadExcel(){
+  const dateStr=document.getElementById('report-date').value||new Date().toISOString().split('T')[0];
+  const grade=document.getElementById('global-grade').value;
+  const H=parseInt(document.getElementById('global-height').value)||820;
+  const processed=window._processed||[];
+  const sf=v=>parseFloat((parseFloat(v)||0).toFixed(2));
+  const hdr=['Date','Sheet','Block No.','BOM SKU','BOM Found','L','W','H','Density','Grade','Binder Code','Act Imported','Act Local','Act Rebonded','Act Memory','Act Total Scrap','Act Hard 1519','Act Soft 1513','Act Total Binder','Block Total','BOM Imported','BOM Local','BOM Rebonded','BOM Memory','BOM Total Scrap','BOM Hard 1519','BOM Soft 1513','BOM Total Binder','Var Imported','Var Local','Var Rebonded','Var Memory','Total Scrap Var','Var Hard 1519','Var Soft 1513','Total Binder Var'];
+  const dataRows=processed.map((p,i)=>{const{r,bom,bd,vars,imp,loc,reb,mem,ts,h19,s13,tb}=p;return[dateStr,r.pageNum==='M'?'Manual':'Sheet '+r.pageNum,r.blockNo||'#'+(i+1),bom?bom.sku:'NOT FOUND',bom?'YES':'NO',parseInt(r.L)||'',parseInt(r.W)||'',H,parseInt(r.density)||'',grade,parseInt(r.binderCode)||'',sf(imp),sf(loc),sf(reb),sf(mem),sf(ts),sf(h19),sf(s13),sf(tb),sf(parseFloat(r.blockTotal)||0),bom?sf(bd.imp):'',bom?sf(bd.loc):'',bom?sf(bd.reb):'',bom?sf(bd.mem):'',bom?sf(bd.ts):'',bom?sf(bd.h19):'',bom?sf(bd.s13):'',bom?sf(bd.tb):'',bom?sf(vars.imp):'',bom?sf(vars.loc):'',bom?sf(vars.reb):'',bom?sf(vars.mem):'',bom?sf(vars.ts):'',bom?sf(vars.h19):'',bom?sf(vars.s13):'',bom?sf(vars.tb):''];});
+  const matched=processed.filter(p=>p.bom);
+  const sumHdr=['Date','Total Sheets','Total Blocks','BOM Matched','Not Found','Total Scrap (kg)','Total Binder (kg)','Scrap Variance (kg)','Binder Variance (kg)'];
+  const sumRow=[dateStr,[...new Set(rows.map(r=>r.pageNum))].length,processed.length,matched.length,processed.length-matched.length,sf(processed.reduce((s,p)=>s+p.ts,0)),sf(processed.reduce((s,p)=>s+p.tb,0)),sf(matched.reduce((s,p)=>s+p.vars.ts,0)),sf(matched.reduce((s,p)=>s+p.vars.tb,0))];
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet([hdr,...dataRows]);ws1['!cols']=hdr.map((_,i)=>({wch:i<4?22:12}));
+  XLSX.utils.book_append_sheet(wb,ws1,'Block Variance Detail');
+  const ws2=XLSX.utils.aoa_to_sheet([sumHdr,sumRow]);ws2['!cols']=sumHdr.map(()=>({wch:24}));
+  XLSX.utils.book_append_sheet(wb,ws2,'Daily Summary');
+  XLSX.writeFile(wb,`Foaming_Variance_${dateStr}.xlsx`);
+}
+</script>
+</body>
+</html>
