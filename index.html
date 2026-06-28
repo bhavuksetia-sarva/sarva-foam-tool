@@ -494,14 +494,14 @@ function parseBomExcel(buf) {
       if (!m) continue;
 
       const L=parseInt(m[1]), W=parseInt(m[2]), H=parseInt(m[3]), D=parseInt(m[4]);
-      const Grade = m[5] ? m[5].toUpperCase() : (s(C.grade).toUpperCase() || 'FO');
+      
       const B = parseInt(m[6]);
       const tw = g(C.totalWt);
       if (tw === 0) continue;
 
       // Store ABSOLUTE WEIGHTS directly — no percentages
       BOM.push({
-        sku: sku.trim(), L, W, H, D, Grade, B, total_wt: tw,
+        sku: `BLOCK ${parseInt(m[1])}X${parseInt(m[2])}X${parseInt(m[3])}-D${parseInt(m[4])}-B${parseInt(m[6])}`, L, W, H, D, B, total_wt: tw,
         bom_imported:     g(C.imported),
         bom_local:        g(C.local),
         bom_rebonded:     g(C.rebonded),
@@ -731,9 +731,9 @@ function goStep(n) {
 function lookupBom(L, W, H, D, B, grade) {
   const l=parseInt(L), w=parseInt(W), h=parseInt(H)||820, d=parseInt(D), b=parseInt(B), g=(grade||'FO').toUpperCase();
   // Try exact match first (with H)
-  let hit = BOM.find(x => x.L===l && x.W===w && x.H===h && x.D===d && x.B===b && x.Grade===g);
+  let hit = BOM.find(x => x.L===l && x.W===w && x.H===h && x.D===d && x.B===b);
   // Fallback: ignore H mismatch (H always 820 in practice)
-  if (!hit) hit = BOM.find(x => x.L===l && x.W===w && x.D===d && x.B===b && x.Grade===g);
+  if (!hit) hit = BOM.find(x => x.L===l && x.W===w && x.D===d && x.B===b);
   return hit || null;
 }
 
@@ -791,7 +791,7 @@ function renderVariance() {
     const { bom, bd, vars, imp, loc, reb, mem, ts, h19, s13, tb, r } = p;
     if (!bom) return `<tr>
       <td><b>${r.blockNo||'#'+(i+1)}</b></td>
-      <td colspan="2"><span class="nobom">⚠ Not in BOM: BLOCK ${r.L}X${r.W}X${document.getElementById('global-height').value}-D${r.density}-B${r.binderCode}-${document.getElementById('global-grade').value}</span></td>
+      <td colspan="2"><span class="nobom">⚠ Not in BOM: BLOCK ${r.L}X${r.W}X${document.getElementById('global-height').value}-D${r.density}-B${r.binderCode}</span></td>
       <td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td>
       <td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td>
       <td colspan="8" style="color:#94a3b8;font-size:11px">— BOM not found —</td></tr>`;
