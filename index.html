@@ -401,134 +401,115 @@ function parseBomExcel(buf) {
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
 
-    // ── Step 1: Read as raw 2D array (no header assumptions) ──────────────
+    // Read as raw 2D array — no header assumptions
     const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-    // ── Step 2: Find the header row — the row containing key column names ──
-    // We look for the row that has "Block SKU Name" or similar
-    let headerRowIdx = -1;
-    let skuColIdx = -1;
-    const skuKeywords = ['block sku', 'sku name', 'block name', 'block identity'];
-    for (let i = 0; i < Math.min(allRows.length, 10); i++) {
-      const row = allRows[i];
-      for (let j = 0; j < row.length; j++) {
-        const cell = String(row[j] || '').toLowerCase().trim();
-        if (skuKeywords.some(k => cell.includes(k))) {
-          headerRowIdx = i; skuColIdx = j; break;
-        }
-      }
-      if (headerRowIdx >= 0) break;
-    }
-
-    // ── Step 3: If no header found, scan ALL cells for BLOCK SKU pattern ──
-    // This handles any Excel layout — we extract directly from the SKU cell
     const SKU_RE = /BLOCK\s+(\d+)X(\d+)X(\d+)-D(\d+)(?:-([A-Z]{2}))?-B(\d+)/i;
 
-    if (headerRowIdx < 0) {
-      // Fallback: find every cell matching the SKU pattern and read row values
-      BOM = [];
-      for (let i = 0; i < allRows.length; i++) {
-        const row = allRows[i];
-        for (let j = 0; j < row.length; j++) {
-          const cell = String(row[j] || '');
-          const m = cell.match(SKU_RE);
-          if (m) {
-            // Extract all numeric values from this row
-            const nums = row.map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
-            BOM.push(buildBomRecord(cell, m, nums, row));
-          }
-        }
+    // ── Find the real header row ── scan first 10 rows for 'Block SKU Name'
+    let headerRowIdx = -1;
+    for (let i = 0; i < Math.min(allRows.length, 10); i++) {
+      const rowStr = allRows[i].join('|').toLowerCase();
+      if (rowStr.includes('block sku') || rowStr.includes('sku name')) {
+        headerRowIdx = i; break;
       }
-    } else {
-      // ── Step 4: Use header row to build column map ──────────────────────
-      const headers = allRows[headerRowIdx];
-      const colIdx = {}; // name -> index
-      headers.forEach((h, i) => {
-        const k = String(h || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/\n/g, ' ');
-        colIdx[k] = i;
+    }
+
+    // ── Build column index from header row ─────────────────────────────────
+    const headers = headerRowIdx >= 0 ? allRows[headerRowIdx].map(h =>
+      String(h||'').trim().toLowerCase().replace(/\n/g,' ').replace(/\s+/g,' ')
+    ) : [];
+
+    const ci = (name) => {
+      // exact match first
+      let idx = headers.indexOf(name.toLowerCase().replace(/\n/g,' ').replace(/\s+/g,' '));
+      if (idx >= 0) return idx;
+      // partial match
+      idx = headers.findIndex(h => h.includes(name.toLowerCase().split(' ')[0]) && h.includes(name.toLowerCase().split(' ').slice(-1)[0]));
+      return idx;
+    };
+
+    // Column indices for this specific BOM format
+    const cols = {
+      sku:        ci('block sku name'),
+      grade:      ci('grade code'),
+      totalWt:    ci('total wt (kg)') >= 0 ? ci('total wt (kg)') : headers.findIndex(h => h.includes('total wt')),
+      local:      ci('local scrap'),
+      imported:   ci('imported scrap'),
+      rebonded:   ci('rebonded scrap'),
+      memory:     ci('memory scrap'),
+      totalScrap: headers.findIndex(h => h.includes('total scrap') && h.includes('%')),
+      hard1519:   ci('hard binder 1519'),
+      soft1513:   ci('soft binder 1513'),
+      soft1026:   ci('soft binder 1026'),
+      totalBinder:ci('total binder %'),
+    };
+
+    // ── Parse data rows ────────────────────────────────────────────────────
+    const dataStartRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 0;
+    BOM = [];
+
+    for (let i = dataStartRow; i < allRows.length; i++) {
+      const row = allRows[i];
+      // Find the SKU cell in this row (check col index first, then scan)
+      let skuCell = cols.sku >= 0 ? String(row[cols.sku]||'') : '';
+      if (!skuCell.includes('BLOCK')) {
+        // scan entire row for a BLOCK SKU
+        skuCell = row.map(c=>String(c||'')).find(c => SKU_RE.test(c)) || '';
+      }
+      const m = skuCell.match(SKU_RE);
+      if (!m) continue;
+
+      const g = (idx) => idx >= 0 ? (parseFloat(row[idx]) || 0) : 0;
+
+      BOM.push({
+        sku:   skuCell.trim(),
+        L:     parseInt(m[1]),
+        W:     parseInt(m[2]),
+        H:     parseInt(m[3]),
+        D:     parseInt(m[4]),
+        Grade: m[5] ? m[5].toUpperCase() : (String(cols.grade >= 0 ? row[cols.grade] : '').trim().toUpperCase() || 'FO'),
+        B:     parseInt(m[6]),
+        total_wt:             g(cols.totalWt),
+        bom_local_pct:        g(cols.local),
+        bom_imported_pct:     g(cols.imported),
+        bom_rebonded_pct:     g(cols.rebonded),
+        bom_memory_pct:       g(cols.memory),
+        bom_total_scrap_pct:  g(cols.totalScrap),
+        bom_hard1519_pct:     g(cols.hard1519),
+        bom_soft1513_pct:     g(cols.soft1513),
+        bom_soft1026_pct:     g(cols.soft1026),
+        bom_total_binder_pct: g(cols.totalBinder),
       });
-
-      const findCol = (...names) => {
-        for (const n of names) {
-          const k = n.toLowerCase().replace(/\s+/g, ' ').replace(/\n/g, ' ');
-          if (colIdx[k] !== undefined) return colIdx[k];
-          // partial match
-          const found = Object.keys(colIdx).find(c => c.includes(k) || k.includes(c));
-          if (found) return colIdx[found];
-        }
-        return -1;
-      };
-
-      const getCell = (row, ...names) => {
-        const i = findCol(...names);
-        return i >= 0 ? row[i] : '';
-      };
-      const getNum2 = (row, ...names) => {
-        const v = parseFloat(getCell(row, ...names));
-        return isNaN(v) ? 0 : v;
-      };
-
-      BOM = [];
-      for (let i = headerRowIdx + 1; i < allRows.length; i++) {
-        const row = allRows[i];
-        const sku = String(getCell(row, 'block sku name', 'sku name', 'block name') || '');
-        const m = sku.match(SKU_RE);
-        if (!m) continue;
-
-        const nums = row.map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
-        const gradeFromCol = String(getCell(row, 'grade code', 'grade') || '').trim().toUpperCase();
-
-        BOM.push({
-          sku,
-          L: parseInt(m[1]), W: parseInt(m[2]), H: parseInt(m[3]),
-          D: parseInt(m[4]),
-          Grade: m[5] ? m[5].toUpperCase() : (gradeFromCol || 'FO'),
-          B: parseInt(m[6]),
-          total_wt:             getNum2(row, 'total wt\n(kg)', 'total wt (kg)', 'total wt', 'total weight'),
-          bom_local_pct:        getNum2(row, 'local scrap'),
-          bom_imported_pct:     getNum2(row, 'imported scrap'),
-          bom_rebonded_pct:     getNum2(row, 'rebonded scrap'),
-          bom_memory_pct:       getNum2(row, 'memory scrap'),
-          bom_total_scrap_pct:  getNum2(row, 'total scrap\n%', 'total scrap %', 'total scrap%'),
-          bom_hard1519_pct:     getNum2(row, 'hard binder 1519', 'hard binder', 'hard 1519'),
-          bom_soft1513_pct:     getNum2(row, 'soft binder 1513', 'soft binder 1513'),
-          bom_soft1026_pct:     getNum2(row, 'soft binder 1026', 'soft binder 1026'),
-          bom_total_binder_pct: getNum2(row, 'total binder %', 'total binder%', 'binder %'),
-        });
-      }
     }
 
     BOM = BOM.filter(r => r.L > 0 && r.B > 0 && r.total_wt > 0);
 
-    // Save URL if loaded from URL
     const urlInput = document.getElementById('bom-url-input').value.trim();
     if (urlInput) localStorage.setItem('sarva_bom_url', urlInput);
     document.getElementById('bom-count').textContent = BOM.length + ' records';
     updatePills();
-    alert(`✓ Block Master loaded: ${BOM.length} BOM records found.\n\nSample: ${BOM[0]?.sku || 'none'}`);
+
+    if (BOM.length === 0) {
+      alert('⚠ 0 records found.\n\nDebug info:\n- Total rows in file: ' + allRows.length + '\n- Header row found at: row ' + (headerRowIdx+1) + '\n- SKU column index: ' + cols.sku + '\n\nCheck that your Excel has "Block SKU Name" as a column header and SKUs like "BLOCK 75X51X820-D70-B8".');
+    } else {
+      alert('✓ Block Master loaded: ' + BOM.length + ' BOM records.\n\nFirst record: ' + BOM[0].sku);
+    }
   } catch(e) { alert('Error parsing Excel: ' + e.message); console.error(e); }
 }
 
 function buildBomRecord(sku, m, nums, row) {
-  // When we have no headers, pick percentage values (0-1 range) and weights heuristically
   const pcts = nums.filter(v => v > 0 && v <= 1);
   const wts  = nums.filter(v => v > 1);
   return {
-    sku,
-    L: parseInt(m[1]), W: parseInt(m[2]), H: parseInt(m[3]),
-    D: parseInt(m[4]),
-    Grade: m[5] ? m[5].toUpperCase() : 'FO',
-    B: parseInt(m[6]),
-    total_wt:             wts[wts.length - 1] || 0,
-    bom_local_pct:        pcts[1] || 0,
-    bom_imported_pct:     pcts[0] || 0,
-    bom_rebonded_pct:     pcts[2] || 0,
-    bom_memory_pct:       pcts[3] || 0,
-    bom_total_scrap_pct:  pcts[4] || 0,
-    bom_hard1519_pct:     pcts[5] || 0,
-    bom_soft1513_pct:     pcts[6] || 0,
-    bom_soft1026_pct:     pcts[7] || 0,
-    bom_total_binder_pct: pcts[8] || 0,
+    sku, L: parseInt(m[1]), W: parseInt(m[2]), H: parseInt(m[3]),
+    D: parseInt(m[4]), Grade: m[5]?m[5].toUpperCase():'FO', B: parseInt(m[6]),
+    total_wt: wts[wts.length-1]||0,
+    bom_local_pct:pcts[1]||0, bom_imported_pct:pcts[0]||0,
+    bom_rebonded_pct:pcts[2]||0, bom_memory_pct:pcts[3]||0,
+    bom_total_scrap_pct:pcts[4]||0, bom_hard1519_pct:pcts[5]||0,
+    bom_soft1513_pct:pcts[6]||0, bom_soft1026_pct:pcts[7]||0,
+    bom_total_binder_pct:pcts[8]||0,
   };
 }
 
