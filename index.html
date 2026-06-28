@@ -191,7 +191,7 @@ select,input[type=date],input[type=number]{border:1.5px solid #E2E8F0;border-rad
     <div class="tw">
       <table>
         <thead><tr>
-          <th>Sheet</th><th>Block No.</th><th>Density</th><th>L</th><th>W</th>
+          <th>Block No.</th><th>Density</th><th>L (mm)</th><th>W (mm)</th>
           <th style="background:#843C0C;min-width:70px">★ Binder %</th>
           <th class="ga">Imported</th><th class="ga">Local</th><th class="ga">Rebonded</th><th class="ga">Memory</th>
           <th class="ga">Hard 1519</th><th class="ga">Soft 1513</th><th class="ga">Block Total</th>
@@ -341,12 +341,12 @@ function renderTable(){
     if(r.pageNum!==lastPage){
       lastPage=r.pageNum;
       const sep=document.createElement('tr');sep.className='page-sep';
-      sep.innerHTML=`<td colspan="14"><span class="src-badge">${r.source==='manual'?'✎ Manual':'📄 Sheet '+r.pageNum}</span></td>`;
+      sep.innerHTML=`<td colspan="13"><span class="src-badge">${r.source==='manual'?'✎ Manual entry':'📄 Sheet '+r.pageNum}</span></td>`;
       tbody.appendChild(sep);
     }
     const tr=document.createElement('tr');
     const fields=['blockNo','density','L','W','binderCode','imported','local','rebonded','memory','hard1519','soft1513','blockTotal'];
-    tr.innerHTML=fields.map(f=>`<td><input type="${f==='blockNo'?'text':'number'}" value="${r[f]}" step="0.01" oninput="rows[${i}]['${f}']=this.value" ${f==='binderCode'?'style="font-weight:700;color:#843C0C;width:55px"':''}></td>`).join('')+
+    tr.innerHTML=fields.map(f=>`<td><input type="${f==='blockNo'?'text':'number'}" value="${r[f]??''}" step="0.01" oninput="rows[${i}]['${f}']=this.value" ${f==='binderCode'?'style="font-weight:700;color:#843C0C;width:55px"':''}></td>`).join('')+
       `<td><button class="btn" style="padding:3px 7px;font-size:11px" onclick="deleteRow(${i})"><i class="ti ti-trash"></i></button></td>`;
     tbody.appendChild(tr);
   });
@@ -399,10 +399,10 @@ function renderVariance(){
   const trows=processed.map((p,i)=>{
     const{bom,bd,vars,imp,loc,reb,mem,ts,h19,s13,tb,r}=p;
     const pg=r.pageNum==='M'?'Manual':'Pg '+r.pageNum;
-    if(!bom)return`<tr><td><span class="src-badge">${pg}</span></td><td><b>${r.blockNo||'#'+(i+1)}</b></td><td colspan="2"><span class="nobom">⚠ Not in BOM: ${r.L}×${r.W}-D${r.density}-B${r.binderCode}</span></td><td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td><td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td><td colspan="8" style="color:#94a3b8;font-size:11px">— BOM not found —</td></tr>`;
-    return`<tr><td><span class="src-badge">${pg}</span></td><td><b>${r.blockNo||'#'+(i+1)}</b></td><td style="font-size:10px;text-align:left">${bom.sku}</td><td style="color:#166534;font-weight:700">✓</td><td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td><td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td><td><span class="${vc(vars.imp)}">${vs(vars.imp)}</span></td><td><span class="${vc(vars.loc)}">${vs(vars.loc)}</span></td><td><span class="${vc(vars.reb)}">${vs(vars.reb)}</span></td><td><span class="${vc(vars.mem)}">${vs(vars.mem)}</span></td><td><span class="${vc(vars.ts)}">${vs(vars.ts)}</span></td><td><span class="${vc(vars.h19)}">${vs(vars.h19)}</span></td><td><span class="${vc(vars.s13)}">${vs(vars.s13)}</span></td><td><span class="${vc(vars.tb)}">${vs(vars.tb)}</span></td></tr>`;
+    if(!bom)return`<tr><td><b>${r.blockNo||'#'+(i+1)}</b></td><td colspan="2"><span class="nobom">⚠ Not in BOM: ${r.L}×${r.W}-D${r.density}-B${r.binderCode}</span></td><td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td><td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td><td colspan="8" style="color:#94a3b8;font-size:11px">— BOM not found —</td></tr>`;
+    return`<tr><td><b>${r.blockNo||'#'+(i+1)}</b></td><td style="font-size:10px;text-align:left">${bom.sku}</td><td style="color:#166534;font-weight:700">✓</td><td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td><td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td><td><span class="${vc(vars.imp)}">${vs(vars.imp)}</span></td><td><span class="${vc(vars.loc)}">${vs(vars.loc)}</span></td><td><span class="${vc(vars.reb)}">${vs(vars.reb)}</span></td><td><span class="${vc(vars.mem)}">${vs(vars.mem)}</span></td><td><span class="${vc(vars.ts)}">${vs(vars.ts)}</span></td><td><span class="${vc(vars.h19)}">${vs(vars.h19)}</span></td><td><span class="${vc(vars.s13)}">${vs(vars.s13)}</span></td><td><span class="${vc(vars.tb)}">${vs(vars.tb)}</span></td></tr>`;
   }).join('');
-  document.getElementById('variance-section').innerHTML=`<div class="card"><div class="ctitle"><i class="ti ti-git-diff"></i> Block-by-block variance (${processed.length} blocks)</div><div class="tw"><table><thead><tr><th rowspan="2">Page</th><th rowspan="2">Block No.</th><th rowspan="2">BOM SKU</th><th rowspan="2">✓</th><th colspan="5" class="ga">Actual scrap (kg)</th><th colspan="3" class="ga">Actual binder (kg)</th><th colspan="5" class="gv">Scrap variance</th><th colspan="3" class="gv">Binder variance</th></tr><tr><th class="ga">Imp</th><th class="ga">Local</th><th class="ga">Reb</th><th class="ga">Mem</th><th class="ga">Total</th><th class="ga">Hard 1519</th><th class="ga">Soft 1513</th><th class="ga">Total</th><th class="gv">Imp</th><th class="gv">Local</th><th class="gv">Reb</th><th class="gv">Mem</th><th class="gv">Total scrap</th><th class="gv">Hard 1519</th><th class="gv">Soft 1513</th><th class="gv">Total binder</th></tr></thead><tbody>${trows}</tbody></table></div></div>`;
+  document.getElementById('variance-section').innerHTML=`<div class="card"><div class="ctitle"><i class="ti ti-git-diff"></i> Block-by-block variance (${processed.length} blocks)</div><div class="tw"><table><thead><tr><th rowspan="2">Block No.</th><th rowspan="2">BOM SKU</th><th rowspan="2">✓</th><th colspan="5" class="ga">Actual scrap (kg)</th><th colspan="3" class="ga">Actual binder (kg)</th><th colspan="5" class="gv">Scrap variance</th><th colspan="3" class="gv">Binder variance</th></tr><tr><th class="ga">Imp</th><th class="ga">Local</th><th class="ga">Reb</th><th class="ga">Mem</th><th class="ga">Total</th><th class="ga">Hard 1519</th><th class="ga">Soft 1513</th><th class="ga">Total</th><th class="gv">Imp</th><th class="gv">Local</th><th class="gv">Reb</th><th class="gv">Mem</th><th class="gv">Total scrap</th><th class="gv">Hard 1519</th><th class="gv">Soft 1513</th><th class="gv">Total binder</th></tr></thead><tbody>${trows}</tbody></table></div></div>`;
   document.getElementById('dl-row').style.display='flex';
   window._processed=processed;
 }
