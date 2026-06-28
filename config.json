@@ -1,0 +1,49 @@
+{
+  "_comment": "Edit this file to configure the tool for your unit. No coding needed.",
+  
+  "unit_name": "Sarva Foam Industries — Unit V",
+
+  "bom_file": "block_master.xlsx",
+
+  "bom_columns": {
+    "_comment": "Exact column header names from your Block Master Excel",
+    "sku":            "Block SKU Name",
+    "grade_code":     "Grade Code",
+    "density":        "Density",
+    "L":              "L (mm)",
+    "W":              "W (mm)",
+    "H":              "H (mm)",
+    "total_wt":       "Total Wt\n(KG)",
+    "local_pct":      "Local Scrap",
+    "imported_pct":   "Imported Scrap",
+    "rebonded_pct":   "Rebonded Scrap",
+    "memory_pct":     "Memory Scrap",
+    "total_scrap_pct":"Total W Scrap",
+    "hard1519_pct":   "Hard Binder-1519",
+    "soft1513_pct":   "Soft Binder-1513",
+    "soft1026_pct":   "Soft Binder-1026",
+    "total_binder_pct":"Total W Binder",
+    "binder_code":    "Block SKU Name"
+  },
+
+  "foaming_report": {
+    "_comment": "Describe your paper foaming report columns so AI knows what to extract",
+    "has_block_number":   true,
+    "has_density":        true,
+    "has_block_size":     true,
+    "block_size_format":  "LxW",
+    "height_mm":          820,
+    "default_grade":      "FO",
+    "scrap_columns": {
+      "imported":  "Imp (Imported scrap)",
+      "local":     "Local (PU Scrap Local)",
+      "rebonded":  "RB (Rebonded scrap)",
+      "memory":    "Memory / Wakefit Memory scrap (may be absent)"
+    },
+    "binder_columns": {
+      "hard1519":  "Hard / 1519 Binder",
+      "soft1513":  "Soft / 1513 Binder"
+    },
+    "other_columns": "Chemical & Pigment, Remarks (ignore these)"
+  }
+}

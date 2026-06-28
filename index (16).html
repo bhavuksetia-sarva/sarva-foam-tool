@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sarva Foam — Daily Foaming Report Tool</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#F0F4F8;min-height:100vh;color:#1a1a1a}
+.topbar{background:#1F3864;color:#fff;padding:.875rem 1.5rem;display:flex;align-items:center;gap:.875rem;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.topbar h1{font-size:16px;font-weight:700}
+.topbar p{font-size:11px;opacity:.75;margin-top:1px}
+.logo{width:38px;height:38px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo i{font-size:20px}
+.container{max-width:1380px;margin:0 auto;padding:1.25rem 1rem}
+
+/* Setup / status banners */
+.banner{border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.875rem}
+.banner.blue{background:#1e3a5f;color:#bfdbfe}
+.banner.green{background:#14532d;color:#bbf7d0}
+.banner.red{background:#7f1d1d;color:#fecaca}
+.banner.yellow{background:#78350f;color:#fde68a}
+.banner h3{font-size:13px;font-weight:700;margin-bottom:.35rem}
+.banner p{font-size:12px;line-height:1.5;opacity:.9}
+.banner-icon{font-size:24px;flex-shrink:0;margin-top:2px}
+.banner .brow{margin-top:.75rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.banner input[type=url],.banner input[type=text]{padding:.45rem .75rem;border:1.5px solid rgba(255,255,255,.2);border-radius:8px;font-size:12px;background:rgba(0,0,0,.25);color:#fff;min-width:280px}
+.banner input::placeholder{color:rgba(255,255,255,.4)}
+.banner input:focus{outline:none;border-color:rgba(255,255,255,.5)}
+.sbtn{padding:.45rem .9rem;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.sbtn.blue{background:#2563eb;color:#fff}.sbtn.blue:hover{background:#1d4ed8}
+.sbtn.green{background:#16a34a;color:#fff}.sbtn.green:hover{background:#15803d}
+.sbtn.gray{background:rgba(255,255,255,.15);color:#fff}.sbtn.gray:hover{background:rgba(255,255,255,.25)}
+.status-pill{font-size:11px;padding:.25rem .65rem;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:4px}
+.pill-ok{background:#dcfce7;color:#166534}
+.pill-no{background:#fef3c7;color:#92400e}
+.pill-err{background:#fee2e2;color:#991b1b}
+
+/* Loading overlay */
+.loading-overlay{position:fixed;inset:0;background:rgba(15,27,68,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:1rem}
+.loading-overlay.hidden{display:none}
+.spinner{width:48px;height:48px;border:4px solid rgba(255,255,255,.2);border-top-color:#60a5fa;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay p{color:#fff;font-size:14px;font-weight:600}
+.loading-overlay small{color:#93c5fd;font-size:12px}
+
+/* Steps */
+.steps{display:flex;margin-bottom:1.25rem;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.sb2{flex:1;padding:.75rem .5rem;font-size:13px;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;color:#666;background:#fff;border-right:1px solid #e5e7eb;transition:all .15s}
+.sb2:last-child{border-right:none}
+.sb2.active{background:#1F3864;color:#fff}
+.snum{width:22px;height:22px;border-radius:50%;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700;background:rgba(255,255,255,.2);flex-shrink:0}
+.sb2:not(.active) .snum{background:#e5e7eb;color:#666}
+.panel{display:none}.panel.active{display:block}
+.card{background:#fff;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.ctitle{font-size:14px;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:8px;color:#1F3864}
+.ctitle i{font-size:18px}
+
+/* Config editor */
+.config-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:700px){.config-grid{grid-template-columns:1fr}}
+.config-section{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:1rem}
+.config-section h4{font-size:12px;font-weight:700;color:#1F3864;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.5px}
+.field-row{display:flex;flex-direction:column;gap:3px;margin-bottom:.6rem}
+.field-row label{font-size:11px;color:#64748b;font-weight:600}
+.field-row input,.field-row select{border:1.5px solid #E2E8F0;border-radius:6px;padding:.35rem .6rem;font-size:12px;background:#fff;width:100%}
+.field-row input:focus,.field-row select:focus{outline:none;border-color:#2563eb}
+
+/* Upload / thumbs */
+.upload-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:1rem}
+.img-thumb{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:3/4;background:#f1f5f9;border:1px solid #e2e8f0}
+.img-thumb img{width:100%;height:100%;object-fit:cover}
+.thumb-badge{position:absolute;top:6px;left:6px;background:#1F3864;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.thumb-status{position:absolute;bottom:0;left:0;right:0;padding:6px;font-size:10px;font-weight:700;text-align:center}
+.ts-wait{background:rgba(251,191,36,.92);color:#78350f}
+.ts-read{background:rgba(37,99,235,.9);color:#fff}
+.ts-done{background:rgba(22,163,74,.9);color:#fff}
+.ts-err{background:rgba(220,38,38,.9);color:#fff}
+.del-btn{position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.add-card{border:2.5px dashed #CBD5E1;border-radius:10px;aspect-ratio:3/4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:#94a3b8;transition:all .2s}
+.add-card:hover{border-color:#2E75B6;color:#2E75B6;background:#F0F9FF}
+.add-card i{font-size:32px}
+.add-card span{font-size:12px;text-align:center;padding:0 8px;font-weight:600}
+#file-input{display:none}
+
+.progress-wrap{margin:.75rem 0;display:none}
+.progress-label{font-size:12px;color:#64748b;margin-bottom:.35rem;font-weight:600}
+.progress-bar{height:8px;background:#E2E8F0;border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:#2E75B6;border-radius:4px;transition:width .4s}
+
+.scan-btn{width:100%;padding:1rem;background:#1F3864;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.75rem;margin-bottom:.75rem;transition:all .15s}
+.scan-btn:hover:not(:disabled){background:#2E75B6}
+.scan-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* Data table */
+.tw{overflow-x:auto;border-radius:8px;border:1px solid #E2E8F0}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
+th{background:#1F3864;color:#fff;padding:7px 8px;text-align:center;font-weight:700;font-size:11px;white-space:nowrap}
+th.ga{background:#843C0C}th.gv{background:#4A0878}th.gb{background:#375623}
+td{padding:6px 8px;border-bottom:1px solid #F1F5F9;text-align:center;font-size:12px}
+tr:nth-child(even) td{background:#FAFAFA}tr:hover td{background:#EFF6FF}
+td input{width:100%;border:none;background:transparent;text-align:center;font-size:12px;color:#1a1a1a;outline:none;min-width:38px}
+td input:focus{background:#EFF6FF;border-radius:4px}
+.vpos{background:#FFCCCC;color:#7a0000;font-weight:700;padding:2px 5px;border-radius:4px;display:inline-block;font-size:11px}
+.vneg{background:#CCFFCC;color:#166534;font-weight:700;padding:2px 5px;border-radius:4px;display:inline-block;font-size:11px}
+.vzero{color:#94a3b8}
+.nobom{background:#FEF3C7;color:#92400e;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
+.src-badge{font-size:10px;background:#F1F5F9;border:1px solid #E2E8F0;padding:1px 6px;border-radius:10px;color:#64748b;font-weight:600}
+.page-sep td{background:#F1F5F9!important;font-size:11px;color:#64748b;padding:3px 10px!important;text-align:left!important}
+
+.btn{padding:.55rem 1.1rem;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid #E2E8F0;background:#fff;color:#374151;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn:hover{background:#F8FAFC;border-color:#CBD5E1}
+.btn.pri{background:#1F3864;border-color:#1F3864;color:#fff}.btn.pri:hover{background:#2E75B6;border-color:#2E75B6}
+.btn.grn{background:#166534;border-color:#166534;color:#fff}.btn.grn:hover{background:#15803d}
+.btn.red2{background:#DC2626;border-color:#DC2626;color:#fff}
+.brow{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem;align-items:center}
+
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1rem}
+.sc{background:#F8FAFC;border-radius:10px;padding:.875rem;text-align:center;border:1px solid #E2E8F0}
+.sl{font-size:11px;color:#64748b;margin-bottom:.35rem;font-weight:700}
+.sv{font-size:22px;font-weight:700;color:#1a1a1a}
+.sv.p{color:#DC2626}.sv.n{color:#166534}
+.alert{border-radius:8px;padding:.75rem 1rem;font-size:12px;margin-bottom:.75rem;display:flex;align-items:flex-start;gap:.5rem;font-weight:500}
+.aw{background:#FEF3C7;border:1.5px solid #FCD34D;color:#92400e}
+.ai{background:#EFF6FF;border:1.5px solid #BFDBFE;color:#1e40af}
+.as{background:#DCFCE7;border:1.5px solid #86EFAC;color:#166534}
+.add-row-btn{width:100%;padding:.5rem;border:1.5px dashed #CBD5E1;background:transparent;border-radius:8px;color:#94a3b8;font-size:12px;cursor:pointer;margin-top:.5rem;font-weight:600}
+.add-row-btn:hover{background:#F8FAFC}
+select,input[type=date],input[type=number]{border:1.5px solid #E2E8F0;border-radius:8px;padding:.4rem .7rem;font-size:13px}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay hidden" id="loading-overlay">
+  <div class="spinner"></div>
+  <p id="loading-msg">Loading...</p>
+  <small id="loading-sub"></small>
+</div>
+
+<div class="topbar">
+  <div class="logo"><i class="ti ti-stack-2"></i></div>
+  <div>
+    <h1 id="unit-title">Sarva Foam Industries — Daily Foaming Report Tool</h1>
+    <p>Upload paper sheet photos → AI reads handwriting → Review data → Download variance Excel</p>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- STATUS BAR -->
+<div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+  <div id="worker-pill" class="status-pill pill-no"><i class="ti ti-cloud-off" style="font-size:13px"></i> Worker not set</div>
+  <div id="bom-pill" class="status-pill pill-no"><i class="ti ti-table-off" style="font-size:13px"></i> BOM not loaded</div>
+  <div id="config-pill" class="status-pill pill-no"><i class="ti ti-settings-off" style="font-size:13px"></i> Config not loaded</div>
+  <button class="sbtn gray" style="font-size:11px;padding:.25rem .7rem;border-radius:20px;margin-left:auto" onclick="showSetup()">
+    <i class="ti ti-settings" style="font-size:12px"></i> Setup / Settings
+  </button>
+</div>
+
+<!-- SETUP PANEL (hidden by default once configured) -->
+<div id="setup-panel">
+
+  <!-- Worker URL -->
+  <div class="banner blue">
+    <div class="banner-icon">🔌</div>
+    <div style="flex:1">
+      <h3>Cloudflare Worker URL</h3>
+      <p>The Worker handles AI image reading securely. Set it once — saved in this browser.</p>
+      <div class="brow">
+        <input type="url" id="worker-url-input" placeholder="https://sarva-foam.your-name.workers.dev">
+        <button class="sbtn blue" onclick="saveWorkerUrl()">Save URL</button>
+        <div id="worker-status" class="status-pill pill-no">Not set</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config file -->
+  <div class="banner yellow">
+    <div class="banner-icon">⚙️</div>
+    <div style="flex:1">
+      <h3>Report Configuration (config.json)</h3>
+      <p>Describes your foaming report column layout. Upload your <b>config.json</b> file, or paste the raw GitHub URL below.<br>
+      Edit <b>config.json</b> in the GitHub repo to change column names — no coding needed.</p>
+      <div class="brow">
+        <input type="url" id="config-url-input" placeholder="https://raw.githubusercontent.com/YOU/REPO/main/config.json">
+        <button class="sbtn blue" onclick="loadConfigFromUrl()">Load Config</button>
+        <input type="file" id="config-file-input" accept=".json" style="display:none" onchange="loadConfigFromFile(this)">
+        <button class="sbtn gray" onclick="document.getElementById('config-file-input').click()">Upload file</button>
+        <div id="config-status" class="status-pill pill-no">Not loaded</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOM file -->
+  <div class="banner green">
+    <div class="banner-icon">📋</div>
+    <div style="flex:1">
+      <h3>Block Master / BOM File (block_master.xlsx)</h3>
+      <p>Your Block Master Excel. Upload directly or paste the raw GitHub URL.<br>
+      When BOM changes, replace the file in your GitHub repo — the tool reloads it automatically.</p>
+      <div class="brow">
+        <input type="url" id="bom-url-input" placeholder="https://raw.githubusercontent.com/YOU/REPO/main/block_master.xlsx">
+        <button class="sbtn green" onclick="loadBomFromUrl()">Load BOM</button>
+        <input type="file" id="bom-file-input" accept=".xlsx,.xls" style="display:none" onchange="loadBomFromFile(this)">
+        <button class="sbtn gray" onclick="document.getElementById('bom-file-input').click()">Upload file</button>
+        <div id="bom-status" class="status-pill pill-no">Not loaded</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:right;margin-bottom:1rem">
+    <button class="btn pri" onclick="hideSetup()" id="start-btn" disabled>
+      <i class="ti ti-arrow-right"></i> Start using the tool →
+    </button>
+  </div>
+</div>
+
+<!-- MAIN TOOL (hidden until setup complete) -->
+<div id="main-tool" style="display:none">
+
+<div class="steps">
+  <button class="sb2 active" onclick="goStep(1)" id="s1"><span class="snum">1</span> Upload Sheets</button>
+  <button class="sb2" onclick="goStep(2)" id="s2"><span class="snum">2</span> Review Data</button>
+  <button class="sb2" onclick="goStep(3)" id="s3"><span class="snum">3</span> Variance Report</button>
+</div>
+
+<!-- STEP 1 -->
+<div class="panel active" id="panel1">
+  <div class="card" style="background:#F8FAFC;border:1px solid #E2E8F0">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;font-size:12px;color:#374151">
+      <span><b>Unit:</b> <span id="unit-label">—</span></span>
+      <span><b>BOM records:</b> <span id="bom-count">—</span></span>
+      <span><b>Config:</b> <span id="config-label">—</span></span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle"><i class="ti ti-photos"></i> Upload foaming report sheet photos</div>
+    <div class="upload-grid" id="thumb-grid">
+      <div class="add-card" onclick="document.getElementById('file-input').click()">
+        <i class="ti ti-camera-plus"></i><span>Tap to add photos</span>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept="image/*" multiple capture="environment">
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-label" id="progress-label">Reading...</div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+    <button class="scan-btn" id="scan-btn" onclick="scanAll()" disabled>
+      <i class="ti ti-wand"></i> Read all sheets with AI
+    </button>
+    <div class="brow">
+      <button class="btn" onclick="addRow();goStep(2)"><i class="ti ti-keyboard"></i> Skip — enter manually</button>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="panel" id="panel2">
+  <div class="card">
+    <div class="ctitle"><i class="ti ti-settings"></i> Report settings</div>
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:.5rem"><label style="font-size:13px;font-weight:700">Date:</label><input type="date" id="report-date"></div>
+      <div style="display:flex;align-items:center;gap:.5rem"><label style="font-size:13px;font-weight:700">Grade:</label>
+        <select id="global-grade"><option value="FO">FO (Standard)</option><option value="IG">IG (Inner Grade)</option></select></div>
+      <div style="display:flex;align-items:center;gap:.5rem"><label style="font-size:13px;font-weight:700">Height (mm):</label>
+        <input type="number" id="global-height" value="820" style="width:80px"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle"><i class="ti ti-table-options"></i> All block data — check and fill Binder % code</div>
+    <div class="alert ai"><i class="ti ti-bulb"></i><span>The <b>Binder % code</b> column (orange header) is required for exact BOM matching. Enter: 8, 10, 11, 12, or 13.</span></div>
+    <div class="tw">
+      <table>
+        <thead><tr>
+          <th>Block No.</th><th>Density</th><th>L (mm)</th><th>W (mm)</th>
+          <th style="background:#843C0C;min-width:70px">★ Binder %</th>
+          <th class="ga">Imported</th><th class="ga">Local</th><th class="ga">Rebonded</th><th class="ga">Memory</th>
+          <th class="ga">Hard 1519</th><th class="ga">Soft 1513</th><th class="ga">Block Total</th>
+          <th>Del</th>
+        </tr></thead>
+        <tbody id="entry-body"></tbody>
+      </table>
+    </div>
+    <button class="add-row-btn" onclick="addRow()"><i class="ti ti-plus"></i> Add row manually</button>
+    <div class="brow">
+      <button class="btn pri" onclick="goStep(3)"><i class="ti ti-chart-bar"></i> Calculate Variance →</button>
+      <button class="btn" onclick="goStep(1)"><i class="ti ti-arrow-left"></i> Add more sheets</button>
+      <button class="btn red2" onclick="if(confirm('Clear all data?')){rows=[];renderTable()}"><i class="ti ti-trash"></i> Clear all</button>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="panel" id="panel3">
+  <div id="summary-section"></div>
+  <div id="variance-section"></div>
+  <div class="brow" id="dl-row" style="display:none">
+    <button class="btn grn" onclick="downloadExcel()"><i class="ti ti-file-spreadsheet"></i> Download Excel Report</button>
+    <button class="btn" onclick="goStep(2)"><i class="ti ti-edit"></i> Edit data</button>
+    <button class="btn" onclick="goStep(1)"><i class="ti ti-plus"></i> Add more sheets</button>
+  </div>
+</div>
+
+</div><!-- /main-tool -->
+</div><!-- /container -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let BOM = [];
+let CONFIG = null;
+let sheets = [], rows = [];
+document.getElementById('report-date').value = new Date().toISOString().split('T')[0];
+
+// ── Loading overlay ────────────────────────────────────────────────────────
+function showLoading(msg, sub='') {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading-sub').textContent = sub;
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+function hideLoading() { document.getElementById('loading-overlay').classList.add('hidden'); }
+
+// ── Setup panel ────────────────────────────────────────────────────────────
+function showSetup() {
+  document.getElementById('setup-panel').style.display = 'block';
+  document.getElementById('main-tool').style.display = 'none';
+}
+function hideSetup() {
+  document.getElementById('setup-panel').style.display = 'none';
+  document.getElementById('main-tool').style.display = 'block';
+}
+
+// ── Worker URL ─────────────────────────────────────────────────────────────
+function saveWorkerUrl() {
+  const u = document.getElementById('worker-url-input').value.trim().replace(/\/$/, '');
+  if (!u.startsWith('https://')) { alert('Enter a valid https:// URL'); return; }
+  localStorage.setItem('sarva_worker_url', u);
+  updatePills();
+}
+function getWorkerUrl() { return localStorage.getItem('sarva_worker_url') || ''; }
+
+// ── Config loading ─────────────────────────────────────────────────────────
+async function loadConfigFromUrl() {
+  const url = document.getElementById('config-url-input').value.trim();
+  if (!url) { alert('Enter a URL'); return; }
+  showLoading('Loading config...', url);
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const cfg = await resp.json();
+    applyConfig(cfg);
+  } catch(e) { alert('Could not load config: ' + e.message); }
+  hideLoading();
+}
+function loadConfigFromFile(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try { applyConfig(JSON.parse(e.target.result)); }
+    catch(err) { alert('Invalid JSON: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+function applyConfig(cfg) {
+  CONFIG = cfg;
+  localStorage.setItem('sarva_config', JSON.stringify(cfg));
+  updatePills();
+  // Apply config values to UI
+  if (cfg.unit_name) {
+    document.getElementById('unit-title').textContent = cfg.unit_name + ' — Daily Foaming Report Tool';
+    document.getElementById('unit-label').textContent = cfg.unit_name;
+  }
+  if (cfg.foaming_report?.height_mm) document.getElementById('global-height').value = cfg.foaming_report.height_mm;
+  document.getElementById('config-label').textContent = cfg.unit_name || 'Loaded';
+}
+
+// ── BOM loading ────────────────────────────────────────────────────────────
+async function loadBomFromUrl() {
+  const url = document.getElementById('bom-url-input').value.trim();
+  if (!url) { alert('Enter a URL'); return; }
+  showLoading('Loading Block Master...', url);
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const buf = await resp.arrayBuffer();
+    parseBomExcel(buf);
+  } catch(e) { alert('Could not load BOM: ' + e.message); }
+  hideLoading();
+}
+function loadBomFromFile(input) {
+  const file = input.files[0]; if (!file) return;
+  showLoading('Parsing Block Master...', file.name);
+  const reader = new FileReader();
+  reader.onload = e => { parseBomExcel(e.target.result); hideLoading(); };
+  reader.readAsArrayBuffer(file);
+}
+function parseBomExcel(buf) {
+  try {
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    // Get column mapping from config, or use defaults
+    const cm = CONFIG?.bom_columns || {};
+    const col = (key, def) => cm[key] || def;
+
+    // Find header row (skip merged/blank rows at top)
+    const data = raw.filter(r => {
+      const skuVal = r[col('sku', 'Block SKU Name')] || r['Block SKU Name'] || '';
+      return typeof skuVal === 'string' && skuVal.includes('BLOCK');
+    });
+
+    BOM = data.map(r => {
+      const sku = r[col('sku','Block SKU Name')] || r['Block SKU Name'] || '';
+
+      // Parse dimensions directly from SKU string — most reliable source
+      // Format: BLOCK LxWxH-Dxx[-GRADE]-Bxx   e.g. BLOCK 75X51X820-D70-B8 or BLOCK 79X63X820-D70-IG-B13
+      const skuMatch = sku.match(/BLOCK\s+(\d+)X(\d+)X(\d+)-D(\d+)(?:-([A-Z]{2}))?-B(\d+)/i);
+      const L_sku   = skuMatch ? parseInt(skuMatch[1]) : 0;
+      const W_sku   = skuMatch ? parseInt(skuMatch[2]) : 0;
+      const H_sku   = skuMatch ? parseInt(skuMatch[3]) : 820;
+      const D_sku   = skuMatch ? parseInt(skuMatch[4]) : 0;
+      const G_sku   = skuMatch && skuMatch[5] ? skuMatch[5].toUpperCase() : null;
+      const B_sku   = skuMatch ? parseInt(skuMatch[6]) : 0;
+
+      const getNum = (keys) => {
+        for (const k of keys) { const v = parseFloat(r[k]); if (!isNaN(v) && v !== 0) return v; }
+        return 0;
+      };
+
+      // Fallback to Excel columns if SKU parse fails
+      const L = L_sku || getNum([col('L','L (mm)'), 'L (mm)']);
+      const W = W_sku || getNum([col('W','W (mm)'), 'W (mm)']);
+      const H = H_sku || getNum([col('H','H (mm)'), 'H (mm)']) || 820;
+      const D = D_sku || getNum([col('density','Density'), 'Density']);
+      const B = B_sku;
+      const Grade = G_sku || r[col('grade_code','Grade Code')] || r['Grade Code'] || 'FO';
+
+      return {
+        sku, L, W, H, D, Grade, B,
+        total_wt:             getNum([col('total_wt','Total Wt\n(KG)'), 'Total Wt\n(KG)', 'Total Wt (KG)', 'Total Wt']),
+        bom_local_pct:        getNum([col('local_pct','Local Scrap'), 'Local Scrap']),
+        bom_imported_pct:     getNum([col('imported_pct','Imported Scrap'), 'Imported Scrap']),
+        bom_rebonded_pct:     getNum([col('rebonded_pct','Rebonded Scrap'), 'Rebonded Scrap']),
+        bom_memory_pct:       getNum([col('memory_pct','Memory Scrap'), 'Memory Scrap']),
+        bom_total_scrap_pct:  getNum([col('total_scrap_pct','Total Scrap\n%'), 'Total Scrap\n%', 'Total Scrap %']),
+        bom_hard1519_pct:     getNum([col('hard1519_pct','Hard Binder 1519'), 'Hard Binder 1519']),
+        bom_soft1513_pct:     getNum([col('soft1513_pct','Soft Binder 1513'), 'Soft Binder 1513']),
+        bom_soft1026_pct:     getNum([col('soft1026_pct','Soft Binder 1026'), 'Soft Binder 1026']),
+        bom_total_binder_pct: getNum([col('total_binder_pct','Total Binder %'), 'Total Binder %']),
+      };
+    }).filter(r => r.L > 0 && r.B > 0);
+
+    localStorage.setItem('sarva_bom_url', document.getElementById('bom-url-input').value.trim());
+    document.getElementById('bom-count').textContent = BOM.length + ' records';
+    updatePills();
+    alert(`✓ Block Master loaded: ${BOM.length} BOM records found.`);
+  } catch(e) { alert('Error parsing Excel: ' + e.message); console.error(e); }
+}
+
+// ── Status pills ───────────────────────────────────────────────────────────
+function updatePills() {
+  const wUrl = getWorkerUrl();
+  const wPill = document.getElementById('worker-pill');
+  wPill.className = 'status-pill ' + (wUrl ? 'pill-ok' : 'pill-no');
+  wPill.innerHTML = `<i class="ti ti-${wUrl?'cloud-check':'cloud-off'}" style="font-size:13px"></i> ${wUrl ? 'Worker connected' : 'Worker not set'}`;
+  document.getElementById('worker-status').className = 'status-pill ' + (wUrl ? 'pill-ok' : 'pill-no');
+  document.getElementById('worker-status').textContent = wUrl ? '✓ Saved' : 'Not set';
+
+  const bomPill = document.getElementById('bom-pill');
+  bomPill.className = 'status-pill ' + (BOM.length ? 'pill-ok' : 'pill-no');
+  bomPill.innerHTML = `<i class="ti ti-${BOM.length?'table-check':'table-off'}" style="font-size:13px"></i> ${BOM.length ? BOM.length+' BOM records' : 'BOM not loaded'}`;
+  document.getElementById('bom-status').className = 'status-pill ' + (BOM.length ? 'pill-ok' : 'pill-no');
+  document.getElementById('bom-status').textContent = BOM.length ? '✓ ' + BOM.length + ' records' : 'Not loaded';
+
+  const cfgPill = document.getElementById('config-pill');
+  cfgPill.className = 'status-pill ' + (CONFIG ? 'pill-ok' : 'pill-no');
+  cfgPill.innerHTML = `<i class="ti ti-${CONFIG?'settings-check':'settings-off'}" style="font-size:13px"></i> ${CONFIG ? (CONFIG.unit_name||'Config loaded') : 'Config not loaded'}`;
+  document.getElementById('config-status').className = 'status-pill ' + (CONFIG ? 'pill-ok' : 'pill-no');
+  document.getElementById('config-status').textContent = CONFIG ? '✓ Loaded' : 'Not loaded';
+
+  // Enable start button and scan button when ready
+  const ready = wUrl && BOM.length > 0 && CONFIG;
+  document.getElementById('start-btn').disabled = !ready;
+  document.getElementById('scan-btn').disabled = !(wUrl && sheets.length > 0);
+
+  // Pre-fill saved URL inputs
+  if (wUrl) document.getElementById('worker-url-input').placeholder = wUrl;
+}
+
+// ── Restore from localStorage on load ─────────────────────────────────────
+window.addEventListener('load', () => {
+  const savedCfg = localStorage.getItem('sarva_config');
+  if (savedCfg) { try { applyConfig(JSON.parse(savedCfg)); } catch(e) {} }
+  const savedBomUrl = localStorage.getItem('sarva_bom_url');
+  if (savedBomUrl) document.getElementById('bom-url-input').value = savedBomUrl;
+  updatePills();
+
+  // Auto-hide setup if everything was previously configured
+  // (BOM needs to be reloaded from URL since we don't store the full data)
+  if (getWorkerUrl() && CONFIG) {
+    // Try to auto-reload BOM from saved URL
+    if (savedBomUrl) {
+      showLoading('Reloading Block Master...', savedBomUrl);
+      fetch(savedBomUrl).then(r => r.arrayBuffer()).then(buf => {
+        parseBomExcel(buf);
+        hideLoading();
+        hideSetup();
+      }).catch(() => { hideLoading(); });
+    }
+  }
+});
+
+// ── File upload ────────────────────────────────────────────────────────────
+const fileInput = document.getElementById('file-input');
+fileInput.addEventListener('change', e => addFiles(Array.from(e.target.files)));
+fileInput.addEventListener('click', () => { fileInput.value = ''; });
+
+function addFiles(files) {
+  files.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      sheets.push({ name: f.name, src: ev.target.result, status: 'pending', blocks: [] });
+      renderThumbs();
+      if (getWorkerUrl()) document.getElementById('scan-btn').disabled = false;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function renderThumbs() {
+  const grid = document.getElementById('thumb-grid');
+  grid.innerHTML = '';
+  sheets.forEach((s, i) => {
+    const lbl = { pending:'Ready', reading:'Reading...', done: s.blocks.length+' blocks found', error:'Error — retry' }[s.status];
+    const cls = { pending:'ts-wait', reading:'ts-read', done:'ts-done', error:'ts-err' }[s.status];
+    grid.innerHTML += `<div class="img-thumb">
+      <img src="${s.src}" alt="Sheet ${i+1}">
+      <div class="thumb-badge">Sheet ${i+1}</div>
+      <div class="thumb-status ${cls}">${lbl}</div>
+      ${s.status!=='reading'?`<button class="del-btn" onclick="removeSheet(${i})"><i class="ti ti-x" style="font-size:12px"></i></button>`:''}
+    </div>`;
+  });
+  grid.innerHTML += `<div class="add-card" onclick="document.getElementById('file-input').click()">
+    <i class="ti ti-camera-plus"></i><span>Add more photos</span></div>`;
+}
+function removeSheet(i) {
+  rows = rows.filter(r => r.pageNum !== i+1);
+  sheets.splice(i, 1); renderThumbs();
+  if (!sheets.length) document.getElementById('scan-btn').disabled = true;
+}
+
+// ── AI scanning ────────────────────────────────────────────────────────────
+async function scanAll() {
+  const workerUrl = getWorkerUrl();
+  if (!workerUrl) { alert('Worker URL not set. Go to Setup.'); return; }
+  if (!CONFIG) { alert('Config not loaded. Go to Setup.'); return; }
+  const btn = document.getElementById('scan-btn');
+  btn.disabled = true;
+  const pWrap = document.getElementById('progress-wrap');
+  const pFill = document.getElementById('progress-fill');
+  const pLabel = document.getElementById('progress-label');
+  pWrap.style.display = 'block';
+  rows = rows.filter(r => r.source === 'manual');
+
+  for (let i = 0; i < sheets.length; i++) {
+    if (sheets[i].status === 'done') continue;
+    sheets[i].status = 'reading'; renderThumbs();
+    pLabel.textContent = `Reading sheet ${i+1} of ${sheets.length}...`;
+    pFill.style.width = Math.round((i / sheets.length) * 100) + '%';
+    try {
+      const blocks = await readSheet(sheets[i].src, workerUrl);
+      sheets[i].blocks = blocks; sheets[i].status = 'done';
+      blocks.forEach(b => rows.push({ ...b, pageNum: i+1, source: 'scan' }));
+    } catch(e) { sheets[i].status = 'error'; console.error('Sheet '+(i+1)+':', e); }
+    renderThumbs();
+  }
+  pFill.style.width = '100%';
+  pLabel.textContent = `✓ Done! ${rows.filter(r=>r.source==='scan').length} blocks extracted. Go to Step 2.`;
+  btn.disabled = false;
+  setTimeout(() => goStep(2), 1500);
+}
+
+async function readSheet(src, workerUrl) {
+  const base64 = src.split(',')[1];
+  const mediaType = src.split(';')[0].split(':')[1];
+  const reportConfig = CONFIG?.foaming_report || {};
+  const resp = await fetch(workerUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'read-image', imageB64: base64, mediaType, reportConfig })
+  });
+  if (!resp.ok) { const e = await resp.json(); throw new Error(e.error || 'Error ' + resp.status); }
+  const data = await resp.json();
+  const text = data.content.map(c => c.text || '').join('');
+  const clean = text.replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(clean);
+  if (parsed.date) {
+    try {
+      const p = parsed.date.split('/');
+      if (p.length === 3) {
+        const y = p[2].length === 2 ? '20'+p[2] : p[2];
+        document.getElementById('report-date').value = `${y}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+      }
+    } catch(e) {}
+  }
+  return (parsed.blocks || []).map(b => ({
+    blockNo: b.blockNo||'', density: b.density||'', L: b.L||'', W: b.W||'',
+    binderCode: '', imported: b.imported||0, local: b.local||0,
+    rebonded: b.rebonded||0, memory: b.memory||0,
+    hard1519: b.hard1519||0, soft1513: b.soft1513||0, blockTotal: b.blockTotal||0
+  }));
+}
+
+// ── Table ──────────────────────────────────────────────────────────────────
+function addRow(d={}) {
+  rows.push({ blockNo:'',density:'',L:'',W:'',binderCode:'',imported:0,local:0,rebonded:0,memory:0,hard1519:0,soft1513:0,blockTotal:0,pageNum:'M',source:'manual', ...d });
+  renderTable();
+}
+function deleteRow(i) { rows.splice(i, 1); renderTable(); }
+function renderTable() {
+  const tbody = document.getElementById('entry-body');
+  tbody.innerHTML = ''; let lastPage = null;
+  rows.forEach((r, i) => {
+    if (r.pageNum !== lastPage) {
+      lastPage = r.pageNum;
+      const sep = document.createElement('tr'); sep.className = 'page-sep';
+      sep.innerHTML = `<td colspan="13"><span class="src-badge">${r.source==='manual'?'✎ Manual entry':'📄 Sheet '+r.pageNum}</span></td>`;
+      tbody.appendChild(sep);
+    }
+    const tr = document.createElement('tr');
+    const fields = ['blockNo','density','L','W','binderCode','imported','local','rebonded','memory','hard1519','soft1513','blockTotal'];
+    tr.innerHTML = fields.map(f =>
+      `<td><input type="${f==='blockNo'?'text':'number'}" value="${r[f]??''}" step="0.01"
+        oninput="rows[${i}]['${f}']=this.value"
+        ${f==='binderCode'?'style="font-weight:700;color:#843C0C;width:55px"':''}></td>`
+    ).join('') + `<td><button class="btn" style="padding:3px 7px;font-size:11px" onclick="deleteRow(${i})"><i class="ti ti-trash"></i></button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Step navigation ────────────────────────────────────────────────────────
+function goStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById('panel'+i).classList.toggle('active', i===n);
+    document.getElementById('s'+i).classList.toggle('active', i===n);
+  });
+  if (n===2) renderTable();
+  if (n===3) renderVariance();
+}
+
+// ── BOM lookup ─────────────────────────────────────────────────────────────
+function lookupBom(L, W, H, D, B, grade) {
+  const l=parseInt(L), w=parseInt(W), h=parseInt(H)||820, d=parseInt(D), b=parseInt(B), g=(grade||'FO').toUpperCase();
+  // Try exact match first (with H)
+  let hit = BOM.find(x => x.L===l && x.W===w && x.H===h && x.D===d && x.B===b && x.Grade===g);
+  // Fallback: ignore H mismatch (H always 820 in practice)
+  if (!hit) hit = BOM.find(x => x.L===l && x.W===w && x.D===d && x.B===b && x.Grade===g);
+  return hit || null;
+}
+
+const nf = (v, d=1) => (parseFloat(v)||0).toFixed(d);
+const vc = v => { const x=parseFloat(v); return Math.abs(x)<0.05?'vzero':x>0?'vpos':'vneg'; };
+const vs = v => { const x=parseFloat(v); return (x>0?'+':'') + nf(x); };
+
+// ── Variance report ────────────────────────────────────────────────────────
+function renderVariance() {
+  const grade = document.getElementById('global-grade').value;
+  const H = parseInt(document.getElementById('global-height').value)||820;
+  const dateStr = document.getElementById('report-date').value;
+  const processed = rows.map(r => {
+    const bom = lookupBom(r.L, r.W, H, r.density, r.binderCode, grade);
+    const imp=parseFloat(r.imported)||0, loc=parseFloat(r.local)||0, reb=parseFloat(r.rebonded)||0, mem=parseFloat(r.memory)||0;
+    const h19=parseFloat(r.hard1519)||0, s13=parseFloat(r.soft1513)||0;
+    const ts=imp+loc+reb+mem, tb=h19+s13;
+    let bd=null, vars={};
+    if (bom) {
+      bd = { imp:bom.bom_imported_pct*bom.total_wt, loc:bom.bom_local_pct*bom.total_wt, reb:bom.bom_rebonded_pct*bom.total_wt, mem:bom.bom_memory_pct*bom.total_wt, ts:bom.bom_total_scrap_pct*bom.total_wt, h19:bom.bom_hard1519_pct*bom.total_wt, s13:bom.bom_soft1513_pct*bom.total_wt, tb:bom.bom_total_binder_pct*bom.total_wt };
+      vars = { imp:imp-bd.imp, loc:loc-bd.loc, reb:reb-bd.reb, mem:mem-bd.mem, ts:ts-bd.ts, h19:h19-bd.h19, s13:s13-bd.s13, tb:tb-bd.tb };
+    }
+    return { r, bom, bd, vars, imp, loc, reb, mem, ts, h19, s13, tb };
+  });
+
+  const matched = processed.filter(p=>p.bom), unmatched = processed.filter(p=>!p.bom);
+  const totVS=matched.reduce((s,p)=>s+p.vars.ts,0), totVB=matched.reduce((s,p)=>s+p.vars.tb,0);
+  const totS=processed.reduce((s,p)=>s+p.ts,0), totB=processed.reduce((s,p)=>s+p.tb,0);
+  const totalSheets=[...new Set(rows.filter(r=>r.source==='scan').map(r=>r.pageNum))].length;
+
+  document.getElementById('summary-section').innerHTML = `<div class="card">
+    <div class="ctitle"><i class="ti ti-report-analytics"></i> Daily Summary — ${dateStr||'Today'} <span class="src-badge" style="margin-left:6px">${totalSheets} sheet(s)</span></div>
+    ${unmatched.length?`<div class="alert aw"><i class="ti ti-alert-triangle"></i><span>${unmatched.length} block(s) not found in BOM. Fix Binder %, L, W, Density or Grade in Step 2.</span></div>`:''}
+    <div class="sgrid">
+      <div class="sc"><div class="sl">Total blocks</div><div class="sv">${processed.length}</div></div>
+      <div class="sc"><div class="sl">BOM matched</div><div class="sv">${matched.length}</div></div>
+      <div class="sc"><div class="sl">Actual scrap (kg)</div><div class="sv">${nf(totS,1)}</div></div>
+      <div class="sc"><div class="sl">Actual binder (kg)</div><div class="sv">${nf(totB,1)}</div></div>
+      <div class="sc"><div class="sl">Scrap variance</div><div class="sv ${totVS>0.05?'p':totVS<-0.05?'n':''}">${totVS>=0?'+':''}${nf(totVS,1)} kg</div></div>
+      <div class="sc"><div class="sl">Binder variance</div><div class="sv ${totVB>0.05?'p':totVB<-0.05?'n':''}">${totVB>=0?'+':''}${nf(totVB,1)} kg</div></div>
+    </div>
+    <div class="alert ${Math.abs(totVS)<2&&Math.abs(totVB)<2?'as':'aw'}"><i class="ti ti-info-circle"></i>
+      <span><b>RED</b> = over BOM (excess — investigate). <b>GREEN</b> = under BOM (saving). Variance = Actual − BOM standard.</span></div>
+  </div>`;
+
+  const trows = processed.map((p,i) => {
+    const { bom, bd, vars, imp, loc, reb, mem, ts, h19, s13, tb, r } = p;
+    if (!bom) return `<tr>
+      <td><b>${r.blockNo||'#'+(i+1)}</b></td>
+      <td colspan="2"><span class="nobom">⚠ Not in BOM: BLOCK ${r.L}X${r.W}X${document.getElementById('global-height').value}-D${r.density}-B${r.binderCode}-${document.getElementById('global-grade').value}</span></td>
+      <td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td>
+      <td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td>
+      <td colspan="8" style="color:#94a3b8;font-size:11px">— BOM not found —</td></tr>`;
+    return `<tr>
+      <td><b>${r.blockNo||'#'+(i+1)}</b></td>
+      <td style="font-size:10px;text-align:left;max-width:150px">${bom.sku}</td>
+      <td style="color:#166534;font-weight:700">✓</td>
+      <td>${nf(imp)}</td><td>${nf(loc)}</td><td>${nf(reb)}</td><td>${nf(mem)}</td><td>${nf(ts)}</td>
+      <td>${nf(h19)}</td><td>${nf(s13)}</td><td>${nf(tb)}</td>
+      <td><span class="${vc(vars.imp)}">${vs(vars.imp)}</span></td>
+      <td><span class="${vc(vars.loc)}">${vs(vars.loc)}</span></td>
+      <td><span class="${vc(vars.reb)}">${vs(vars.reb)}</span></td>
+      <td><span class="${vc(vars.mem)}">${vs(vars.mem)}</span></td>
+      <td><span class="${vc(vars.ts)}">${vs(vars.ts)}</span></td>
+      <td><span class="${vc(vars.h19)}">${vs(vars.h19)}</span></td>
+      <td><span class="${vc(vars.s13)}">${vs(vars.s13)}</span></td>
+      <td><span class="${vc(vars.tb)}">${vs(vars.tb)}</span></td></tr>`;
+  }).join('');
+
+  document.getElementById('variance-section').innerHTML = `<div class="card">
+    <div class="ctitle"><i class="ti ti-git-diff"></i> Block-by-block variance (${processed.length} blocks)</div>
+    <div class="tw"><table>
+      <thead>
+        <tr>
+          <th rowspan="2">Block No.</th><th rowspan="2">BOM SKU</th><th rowspan="2">✓</th>
+          <th colspan="5" class="ga">Actual scrap (kg)</th>
+          <th colspan="3" class="ga">Actual binder (kg)</th>
+          <th colspan="5" class="gv">Scrap variance (Actual−BOM)</th>
+          <th colspan="3" class="gv">Binder variance</th>
+        </tr>
+        <tr>
+          <th class="ga">Imp</th><th class="ga">Local</th><th class="ga">Reb</th><th class="ga">Mem</th><th class="ga">Total</th>
+          <th class="ga">Hard 1519</th><th class="ga">Soft 1513</th><th class="ga">Total</th>
+          <th class="gv">Imp</th><th class="gv">Local</th><th class="gv">Reb</th><th class="gv">Mem</th><th class="gv">Total scrap</th>
+          <th class="gv">Hard 1519</th><th class="gv">Soft 1513</th><th class="gv">Total binder</th>
+        </tr>
+      </thead>
+      <tbody>${trows}</tbody>
+    </table></div>
+  </div>`;
+
+  document.getElementById('dl-row').style.display = 'flex';
+  window._processed = processed;
+}
+
+// ── Excel download ─────────────────────────────────────────────────────────
+function downloadExcel() {
+  const dateStr = document.getElementById('report-date').value || new Date().toISOString().split('T')[0];
+  const grade = document.getElementById('global-grade').value;
+  const H = parseInt(document.getElementById('global-height').value)||820;
+  const processed = window._processed || [];
+  const sf = v => parseFloat((parseFloat(v)||0).toFixed(2));
+
+  const hdr = ['Date','Block No.','BOM SKU','BOM Found','L','W','H','Density','Grade','Binder Code',
+    'Act Imported','Act Local','Act Rebonded','Act Memory','Act Total Scrap',
+    'Act Hard 1519','Act Soft 1513','Act Total Binder','Block Total',
+    'BOM Imported','BOM Local','BOM Rebonded','BOM Memory','BOM Total Scrap',
+    'BOM Hard 1519','BOM Soft 1513','BOM Total Binder',
+    'Var Imported','Var Local','Var Rebonded','Var Memory','Total Scrap Var',
+    'Var Hard 1519','Var Soft 1513','Total Binder Var'];
+
+  const dataRows = processed.map((p,i) => {
+    const { r, bom, bd, vars, imp, loc, reb, mem, ts, h19, s13, tb } = p;
+    return [dateStr, r.blockNo||'#'+(i+1), bom?bom.sku:'NOT FOUND', bom?'YES':'NO',
+      parseInt(r.L)||'', parseInt(r.W)||'', H, parseInt(r.density)||'', grade, parseInt(r.binderCode)||'',
+      sf(imp),sf(loc),sf(reb),sf(mem),sf(ts),sf(h19),sf(s13),sf(tb),sf(parseFloat(r.blockTotal)||0),
+      bom?sf(bd.imp):'', bom?sf(bd.loc):'', bom?sf(bd.reb):'', bom?sf(bd.mem):'', bom?sf(bd.ts):'',
+      bom?sf(bd.h19):'', bom?sf(bd.s13):'', bom?sf(bd.tb):'',
+      bom?sf(vars.imp):'', bom?sf(vars.loc):'', bom?sf(vars.reb):'', bom?sf(vars.mem):'', bom?sf(vars.ts):'',
+      bom?sf(vars.h19):'', bom?sf(vars.s13):'', bom?sf(vars.tb):''];
+  });
+
+  const matched = processed.filter(p=>p.bom);
+  const sumHdr = ['Date','Unit','Total Blocks','BOM Matched','Not Found','Total Scrap (kg)','Total Binder (kg)','Scrap Variance (kg)','Binder Variance (kg)'];
+  const sumRow = [dateStr, CONFIG?.unit_name||'', processed.length, matched.length, processed.length-matched.length,
+    sf(processed.reduce((s,p)=>s+p.ts,0)), sf(processed.reduce((s,p)=>s+p.tb,0)),
+    sf(matched.reduce((s,p)=>s+p.vars.ts,0)), sf(matched.reduce((s,p)=>s+p.vars.tb,0))];
+
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.aoa_to_sheet([hdr,...dataRows]);
+  ws1['!cols'] = hdr.map((_,i) => ({ wch: i<3?22:12 }));
+  XLSX.utils.book_append_sheet(wb, ws1, 'Block Variance Detail');
+  const ws2 = XLSX.utils.aoa_to_sheet([sumHdr, sumRow]);
+  ws2['!cols'] = sumHdr.map(() => ({ wch: 24 }));
+  XLSX.utils.book_append_sheet(wb, ws2, 'Daily Summary');
+  XLSX.writeFile(wb, `Foaming_Variance_${dateStr}.xlsx`);
+}
+</script>
+</body>
+</html>
